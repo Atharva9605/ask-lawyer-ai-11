@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, RotateCcw, FileText, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LegalStreamingClient, SwotMatrixData } from '@/lib/legalStreamAPI';
-import { ProfessionalLegalChat } from '@/components/ProfessionalLegalChat';
+import ProfessionalLegalChat from '@/components/ProfessionalLegalChat';
 
 export interface AnalysisState {
   partNumber: number;
@@ -39,7 +39,6 @@ const parseSwotFromText = (text: string): SwotMatrixData | null => {
     if (lowerLine.includes('strength') && lowerLine.match(/^[\*\-•]?\s*\*?\*?strength/i)) {
       saveSection();
       currentSection = 'strength';
-      // Extract content after the header if it's on the same line
       const match = line.match(/strength[s]?:?\s*(.+)/i);
       if (match && match[1]) currentContent.push(match[1]);
     } else if (lowerLine.includes('weakness') && lowerLine.match(/^[\*\-•]?\s*\*?\*?weakness/i)) {
@@ -58,14 +57,12 @@ const parseSwotFromText = (text: string): SwotMatrixData | null => {
       const match = line.match(/threat[s]*:?\s*(.+)/i);
       if (match && match[1]) currentContent.push(match[1]);
     } else if (currentSection) {
-      // Add content to current section
       currentContent.push(line);
     }
   }
   
-  saveSection(); // Save the last section
+  saveSection();
   
-  // Validate that we have all four sections
   if (swot.strength && swot.weakness && swot.opportunity && swot.threat) {
     console.log('✅ SWOT parsed successfully:', swot);
     return swot as SwotMatrixData;
@@ -83,19 +80,54 @@ const Analyze = () => {
   const [error, setError] = useState<string | null>(null);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
-  const [streamingClient, setStreamingClient] = useState<LegalStreamingClient | null>(null);
   const [analysisParts, setAnalysisParts] = useState<AnalysisState[]>([]);
   const [lastSubmittedDescription, setLastSubmittedDescription] = useState('');
   const [currentPartNumber, setCurrentPartNumber] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
 
+  // Use refs to prevent cleanup during active streaming
+  const streamingClientRef = useRef<LegalStreamingClient | null>(null);
+  const partsMapRef = useRef<Map<number, AnalysisState>>(new Map());
+  const updateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activePartNumberRef = useRef(0);
+  const isMountedRef = useRef(true);
+
+  // Cleanup on unmount only
   useEffect(() => {
-    return () => streamingClient?.close();
-  }, [streamingClient]);
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+      if (updateTimerRef.current) {
+        clearTimeout(updateTimerRef.current);
+      }
+      if (streamingClientRef.current) {
+        streamingClientRef.current.close();
+      }
+    };
+  }, []);
+
+  // Debounced state update function
+  const scheduleUpdate = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
+    if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
+    updateTimerRef.current = setTimeout(() => {
+      if (!isMountedRef.current) return;
+      const sortedParts = Array.from(partsMapRef.current.values()).sort((a, b) => a.partNumber - b.partNumber);
+      setAnalysisParts(sortedParts);
+    }, 100);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (caseDescription.trim().length < 50) return;
+
+    // Close existing client if any
+    if (streamingClientRef.current) {
+      streamingClientRef.current.close();
+      streamingClientRef.current = null;
+    }
 
     // Reset state
     setLoading(true);
@@ -106,24 +138,18 @@ const Analyze = () => {
     setProgressPercent(5);
     setCurrentPartNumber(0);
     setLastSubmittedDescription(caseDescription);
-    streamingClient?.close();
-
-    // Use a Map to accumulate updates for each part
-    const partsMap = new Map<number, AnalysisState>();
-    let updateTimer: ReturnType<typeof setTimeout> | null = null;
-    let activePartNumber = 0;
-
-    // Debounced state update function
-    const scheduleUpdate = () => {
-      if (updateTimer) clearTimeout(updateTimer);
-      updateTimer = setTimeout(() => {
-        const sortedParts = Array.from(partsMap.values()).sort((a, b) => a.partNumber - b.partNumber);
-        setAnalysisParts(sortedParts);
-      }, 100);
-    };
+    
+    // Clear refs
+    partsMapRef.current.clear();
+    activePartNumberRef.current = 0;
+    if (updateTimerRef.current) {
+      clearTimeout(updateTimerRef.current);
+      updateTimerRef.current = null;
+    }
 
     const client = new LegalStreamingClient({
       onStart: () => {
+        if (!isMountedRef.current) return;
         console.log('Analysis started');
         setHasStarted(true);
         setProgressPercent(10);
@@ -135,13 +161,14 @@ const Analyze = () => {
       },
       
       onDirectivePart: (partNumber: number) => {
+        if (!isMountedRef.current) return;
         console.log('New part:', partNumber);
-        activePartNumber = partNumber;
+        activePartNumberRef.current = partNumber;
         setCurrentPartNumber(partNumber);
         setProgressPercent(10 + partNumber * 7);
         
-        if (!partsMap.has(partNumber)) {
-          partsMap.set(partNumber, {
+        if (!partsMapRef.current.has(partNumber)) {
+          partsMapRef.current.set(partNumber, {
             partNumber,
             thoughts: [],
             searchQueries: [],
@@ -152,8 +179,9 @@ const Analyze = () => {
       },
       
       onThinking: (content: string) => {
+        if (!isMountedRef.current) return;
         console.log('Thinking:', content.substring(0, 50));
-        const part = partsMap.get(activePartNumber);
+        const part = partsMapRef.current.get(activePartNumberRef.current);
         if (part) {
           part.thoughts.push(content);
           scheduleUpdate();
@@ -161,8 +189,9 @@ const Analyze = () => {
       },
       
       onSearchQueries: (queries: string[]) => {
+        if (!isMountedRef.current) return;
         console.log('Search queries:', queries);
-        const part = partsMap.get(activePartNumber);
+        const part = partsMapRef.current.get(activePartNumberRef.current);
         if (part) {
           part.searchQueries.push(...queries);
           scheduleUpdate();
@@ -170,29 +199,31 @@ const Analyze = () => {
       },
       
       onDeliverable: (content: string | SwotMatrixData) => {
+        if (!isMountedRef.current) return;
         console.log('Deliverable chunk received');
-        const part = partsMap.get(activePartNumber);
+        const part = partsMapRef.current.get(activePartNumberRef.current);
         if (part) {
           if (typeof content === 'object') {
             part.deliverable = content;
           } else {
-            // For Part 5, accumulate text and parse SWOT at the end
-            if (activePartNumber === 5) {
-              part.deliverable = (typeof part.deliverable === 'string' ? part.deliverable : '') + content + '\n';
-            } else {
-              part.deliverable = (typeof part.deliverable === 'string' ? part.deliverable : '') + content + '\n';
-            }
+            const currentDeliverable = typeof part.deliverable === 'string' ? part.deliverable : '';
+            part.deliverable = currentDeliverable + content + '\n';
           }
           scheduleUpdate();
         }
       },
       
       onComplete: () => {
+        if (!isMountedRef.current) return;
         console.log('Analysis complete');
-        if (updateTimer) clearTimeout(updateTimer);
+        
+        if (updateTimerRef.current) {
+          clearTimeout(updateTimerRef.current);
+          updateTimerRef.current = null;
+        }
         
         // Parse Part 5 SWOT text into structured data
-        const part5 = partsMap.get(5);
+        const part5 = partsMapRef.current.get(5);
         if (part5 && typeof part5.deliverable === 'string') {
           const swotText = part5.deliverable;
           console.log('🔍 Attempting to parse SWOT from text:', swotText.substring(0, 200));
@@ -205,12 +236,13 @@ const Analyze = () => {
           }
         }
         
-        const sortedParts = Array.from(partsMap.values()).sort((a, b) => a.partNumber - b.partNumber);
+        const sortedParts = Array.from(partsMapRef.current.values()).sort((a, b) => a.partNumber - b.partNumber);
         setAnalysisParts(sortedParts);
         setAnalysisComplete(true);
         setLoading(false);
         setCurrentPartNumber(0);
         setProgressPercent(100);
+        
         toast({ 
           title: "Analysis Complete", 
           description: "The full legal directive is now available." 
@@ -218,11 +250,13 @@ const Analyze = () => {
       },
       
       onError: (errorMsg: string) => {
+        if (!isMountedRef.current) return;
         console.error('Analysis error:', errorMsg);
         setError(errorMsg);
         setLoading(false);
         setHasStarted(false);
         setProgressPercent(0);
+        
         toast({ 
           title: "Analysis Failed", 
           variant: "destructive", 
@@ -231,16 +265,27 @@ const Analyze = () => {
       }
     });
 
-    setStreamingClient(client);
+    streamingClientRef.current = client;
     
     try {
       await client.startAnalysis(caseDescription);
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.error('Failed to start analysis:', err);
       setError('Failed to connect to analysis service');
       setLoading(false);
       setHasStarted(false);
     }
+  };
+
+  const handleReset = () => {
+    setError(null);
+    setCaseDescription(lastSubmittedDescription);
+    setHasStarted(false);
+    setAnalysisParts([]);
+    setAnalysisComplete(false);
+    setProgressPercent(0);
+    setCurrentPartNumber(0);
   };
   
   return (
@@ -314,11 +359,7 @@ const Analyze = () => {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => {
-                  setError(null);
-                  setCaseDescription(lastSubmittedDescription);
-                  setHasStarted(false);
-                }} 
+                onClick={handleReset}
                 className="mt-2"
               >
                 <RotateCcw className="h-4 w-4 mr-2" /> 
