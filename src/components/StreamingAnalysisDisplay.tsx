@@ -3,7 +3,12 @@ import { Brain, Search, FileText, Target, CheckCircle, ExternalLink } from 'luci
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { DirectivePart } from '@/lib/legalStreamAPI';
+
+interface DirectivePart {
+  partNumber: number;
+  partTitle: string;
+  content: string;
+}
 
 interface StreamingAnalysisDisplayProps {
   thinkingContent: string[];

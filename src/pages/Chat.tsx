@@ -1,34 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import MessageContent from '@/components/MessageContent';
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
   Send, 
   Bot, 
   User, 
-  Moon, 
-  Sun, 
   Download, 
-  Search, 
-  Clock,
-  FileText,
-  Users,
-  Gavel,
-  Scale,
-  MessageSquare,
-  Mic,
-  Paperclip,
-  ArrowLeft
+  ArrowLeft,
+  Sparkles,
+  MessageSquare
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LegalStreamingClient } from "@/lib/legalStreamAPI";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Message {
   id: string;
@@ -37,23 +24,16 @@ interface Message {
   timestamp: Date;
 }
 
-interface ChatSession {
-  id: string;
-  title: string;
-  messages: Message[];
-  lastUpdated: Date;
-}
-
 const Chat = () => {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [streamingClient, setStreamingClient] = useState<LegalStreamingClient | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [currentResponse, setCurrentResponse] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -61,27 +41,29 @@ const Chat = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, currentResponse]);
 
   useEffect(() => {
-    // Get conversation ID from sessionStorage
     const storedConversationId = sessionStorage.getItem('legal_conversation_id');
     if (storedConversationId) {
       setConversationId(storedConversationId);
       
-      // Initialize streaming client
       const client = new LegalStreamingClient({
         onDeliverable: (content: string) => {
-          setCurrentResponse(prev => prev + content);
+          if (typeof content === 'string') {
+            setCurrentResponse(prev => prev + content);
+          }
         },
         onComplete: () => {
-          const aiMessage: Message = {
-            id: Date.now().toString(),
-            content: currentResponse,
-            sender: 'ai',
-            timestamp: new Date()
-          };
-          setMessages(prev => [...prev, aiMessage]);
+          if (currentResponse.trim()) {
+            const aiMessage: Message = {
+              id: Date.now().toString(),
+              content: currentResponse,
+              sender: 'ai',
+              timestamp: new Date()
+            };
+            setMessages(prev => [...prev, aiMessage]);
+          }
           setCurrentResponse('');
           setLoading(false);
         },
@@ -91,6 +73,7 @@ const Chat = () => {
             description: error,
             variant: "destructive"
           });
+          setCurrentResponse('');
           setLoading(false);
         }
       });
@@ -103,15 +86,16 @@ const Chat = () => {
       });
       navigate('/analyze');
     }
-  }, []);
 
-  const toggleTheme = () => {
-    setDarkMode(!darkMode);
-    document.documentElement.classList.toggle('dark');
-  };
+    return () => {
+      if (streamingClient) {
+        streamingClient.close();
+      }
+    };
+  }, [navigate]);
 
   const handleSend = async () => {
-    if (!input.trim() || !streamingClient) return;
+    if (!input.trim() || !streamingClient || loading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -125,11 +109,10 @@ const Chat = () => {
     setLoading(true);
     setCurrentResponse('');
 
-    // Send message via streaming client
     await streamingClient.sendChatMessage(input);
   };
 
-  const exportChatTranscript = async () => {
+  const exportChatTranscript = () => {
     try {
       const transcript = messages.map(m => 
         `[${m.sender.toUpperCase()}] ${m.content}`
@@ -150,7 +133,7 @@ const Chat = () => {
     } catch (error) {
       toast({
         title: "Export failed",
-        description: error instanceof Error ? error.message : "Failed to export chat transcript.",
+        description: "Failed to export chat transcript.",
         variant: "destructive"
       });
     }
@@ -165,153 +148,208 @@ const Chat = () => {
   };
 
   return (
-    <div className="flex h-screen bg-background flex-col">
-
-      {/* Header */}
-      <div className="border-b bg-card/50 backdrop-blur-sm p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/analyze')}
-              className="mr-2"
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Back
-            </Button>
-            <Scale className="h-6 w-6 text-primary" />
-            <div>
-              <h1 className="text-xl font-semibold legal-heading">Legal AI Chat</h1>
-              <p className="text-sm text-muted-foreground">
-                {loading ? "AI is responding..." : "Continue your legal consultation"}
-              </p>
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <div className="flex flex-col w-full max-w-5xl mx-auto">
+        {/* Header */}
+        <motion.header 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm"
+        >
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/analyze')}
+                className="gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full"></div>
+                  <div className="relative w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-xl flex items-center justify-center shadow-lg">
+                    <Sparkles className="h-5 w-5 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <h1 className="text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">
+                    Legal AI Assistant
+                  </h1>
+                  <p className="text-xs text-muted-foreground">
+                    {loading ? "Thinking..." : "Ask me anything about your case"}
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center space-x-2">
             <Button
               variant="outline"
               size="sm"
               onClick={exportChatTranscript}
               disabled={messages.length === 0}
-              className="legal-button-hover"
+              className="gap-2"
             >
-              <Download className="h-4 w-4 mr-1" />
+              <Download className="h-4 w-4" />
               Export
             </Button>
           </div>
-        </div>
-      </div>
+        </motion.header>
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-6 max-w-4xl mx-auto">
-          {messages.length === 0 && (
-            <div className="text-center py-12">
-              <Bot className="h-16 w-16 text-primary mx-auto mb-4" />
-              <h3 className="text-2xl font-semibold legal-heading mb-2">
-                Continue Your Legal Consultation
-              </h3>
-              <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-                Your directive has been generated. Ask follow-up questions or request clarifications about your case.
-              </p>
-            </div>
-          )}
-
-          {messages.map((message) => (
-            <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`flex max-w-[80%] ${message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'} items-start space-x-3`}>
-                <Avatar className="mt-1">
-                  <AvatarFallback className={message.sender === 'user' ? 'chat-message-user' : 'bg-primary/10'}>
-                    {message.sender === 'user' ? (
-                      <User className="h-4 w-4" />
-                    ) : (
-                      <Bot className="h-4 w-4 text-primary" />
-                    )}
-                  </AvatarFallback>
-                </Avatar>
-                <div className={`space-y-2 ${message.sender === 'user' ? 'mr-3' : 'ml-3'}`}>
-                  <div className={`rounded-2xl p-4 ${
-                    message.sender === 'user' 
-                      ? 'chat-message-user text-primary-foreground' 
-                      : 'chat-message-ai'
-                  }`}>
-                    <MessageContent 
-                      content={message.content}
-                      className="max-w-none"
-                    />
+        {/* Messages Area */}
+        <ScrollArea className="flex-1 px-4">
+          <div className="max-w-4xl mx-auto py-8">
+            <AnimatePresence mode="popLayout">
+              {messages.length === 0 && !currentResponse && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="text-center py-16"
+                >
+                  <div className="relative inline-block mb-6">
+                    <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full"></div>
+                    <div className="relative w-20 h-20 bg-gradient-to-br from-primary to-primary/60 rounded-2xl flex items-center justify-center shadow-2xl">
+                      <MessageSquare className="h-10 w-10 text-white" />
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    <span>{formatTimestamp(message.timestamp)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-          
-          {currentResponse && (
-            <div className="flex justify-start">
-              <div className="flex items-start space-x-3">
-                <Avatar>
-                  <AvatarFallback className="bg-primary/10">
-                    <Bot className="h-4 w-4 text-primary" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="chat-message-ai rounded-2xl p-4 max-w-[80%]">
-                  <MessageContent content={currentResponse} className="max-w-none" />
-                </div>
-              </div>
-            </div>
-          )}
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent mb-3">
+                    Continue Your Consultation
+                  </h3>
+                  <p className="text-muted-foreground max-w-md mx-auto text-sm">
+                    Your legal directive has been generated. Ask follow-up questions, request clarifications, or explore different aspects of your case.
+                  </p>
+                </motion.div>
+              )}
 
-          {loading && !currentResponse && (
-            <div className="flex justify-start">
-              <div className="flex items-start space-x-3">
-                <Avatar>
-                  <AvatarFallback className="bg-primary/10">
-                    <Bot className="h-4 w-4 text-primary legal-spin" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="chat-message-ai rounded-2xl p-4">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-primary rounded-full legal-pulse"></div>
-                    <div className="w-2 h-2 bg-primary rounded-full legal-pulse" style={{ animationDelay: '0.2s' }}></div>
-                    <div className="w-2 h-2 bg-primary rounded-full legal-pulse" style={{ animationDelay: '0.4s' }}></div>
+              {messages.map((message, index) => (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={`flex gap-4 mb-6 ${message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                >
+                  <Avatar className="h-10 w-10 shadow-lg">
+                    <AvatarFallback className={
+                      message.sender === 'user' 
+                        ? 'bg-gradient-to-br from-blue-500 to-blue-600' 
+                        : 'bg-gradient-to-br from-primary to-primary/60'
+                    }>
+                      {message.sender === 'user' ? (
+                        <User className="h-5 w-5 text-white" />
+                      ) : (
+                        <Bot className="h-5 w-5 text-white" />
+                      )}
+                    </AvatarFallback>
+                  </Avatar>
+                  
+                  <div className={`flex-1 max-w-[80%] ${message.sender === 'user' ? 'items-end' : 'items-start'} flex flex-col gap-2`}>
+                    <div className={`
+                      px-5 py-3 rounded-2xl shadow-sm
+                      ${message.sender === 'user' 
+                        ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm' 
+                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-tl-sm'
+                      }
+                    `}>
+                      <p className={`text-sm leading-relaxed whitespace-pre-wrap ${
+                        message.sender === 'user' ? 'text-white' : 'text-slate-700 dark:text-slate-300'
+                      }`}>
+                        {message.content}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground px-1">
+                      {formatTimestamp(message.timestamp)}
+                    </span>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+                </motion.div>
+              ))}
+              
+              {currentResponse && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex gap-4 mb-6"
+                >
+                  <Avatar className="h-10 w-10 shadow-lg">
+                    <AvatarFallback className="bg-gradient-to-br from-primary to-primary/60">
+                      <Bot className="h-5 w-5 text-white animate-pulse" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 max-w-[80%]">
+                    <div className="px-5 py-3 rounded-2xl rounded-tl-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                        {currentResponse}
+                        <span className="inline-block w-1 h-4 bg-primary ml-1 animate-pulse"></span>
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
-      {/* Input Area */}
-      <div className="border-t bg-card/50 backdrop-blur-sm p-4">
-        <div className="max-w-4xl mx-auto space-y-3">
-          <div className="flex space-x-2">
-            <Textarea
-              placeholder="Ask a follow-up question about your case..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-              className="min-h-[60px] resize-none"
-            />
-            <Button 
-              onClick={handleSend}
-              disabled={loading || !input.trim()}
-              size="lg"
-              className="legal-button-hover px-6"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
+              {loading && !currentResponse && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex gap-4 mb-6"
+                >
+                  <Avatar className="h-10 w-10 shadow-lg">
+                    <AvatarFallback className="bg-gradient-to-br from-primary to-primary/60">
+                      <Bot className="h-5 w-5 text-white" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="px-5 py-3 rounded-2xl rounded-tl-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div className="flex gap-1.5">
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <div ref={messagesEndRef} />
           </div>
-          
-          <p className="text-xs text-muted-foreground text-center">
-            This AI provides general legal information and should not be considered as legal advice.
-          </p>
-        </div>
+        </ScrollArea>
+
+        {/* Input Area */}
+        <motion.div 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="border-t bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-lg"
+        >
+          <div className="p-4 max-w-4xl mx-auto">
+            <div className="relative">
+              <Textarea
+                ref={textareaRef}
+                placeholder="Ask a follow-up question about your case..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                className="min-h-[60px] max-h-[200px] pr-14 resize-none bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 focus:border-primary rounded-2xl"
+                disabled={loading}
+              />
+              <Button 
+                onClick={handleSend}
+                disabled={loading || !input.trim()}
+                size="icon"
+                className="absolute bottom-2 right-2 rounded-xl shadow-lg hover:shadow-xl transition-all"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <p className="text-xs text-muted-foreground text-center mt-3">
+              This AI provides general legal information and should not be considered as legal advice.
+            </p>
+          </div>
+        </motion.div>
       </div>
     </div>
   );

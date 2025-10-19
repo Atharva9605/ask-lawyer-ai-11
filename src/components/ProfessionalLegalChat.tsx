@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Brain, Search, FileText, CheckCircle, Bot, ChevronDown, Scale, Users, Shield, Lightbulb, GitBranch, Banknote, ListChecks, ThumbsUp, ThumbsDown, Sparkles, AlertTriangle, Gavel } from 'lucide-react';
+import { Brain, Search, FileText, CheckCircle, Bot, ChevronDown, Scale, Users, Shield, Lightbulb, GitBranch, Banknote, ListChecks, ThumbsUp, ThumbsDown, Sparkles, AlertTriangle, Gavel, MessageSquare } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import AnalysisState from '@/pages/Analyze';
+import type { AnalysisState } from '@/pages/Analyze';
 import { SwotMatrixData } from '@/lib/legalStreamAPI';
+import { useNavigate } from 'react-router-dom';
 
 interface ProfessionalLegalChatProps {
   analysisParts: AnalysisState[];
@@ -309,6 +311,7 @@ const DeliverableContent: React.FC<{ content: string; isStreaming: boolean }> = 
 export const ProfessionalLegalChat: React.FC<ProfessionalLegalChatProps> = ({
   analysisParts, isStreaming, isComplete, caseDescription, currentPartNumber
 }) => {
+  const navigate = useNavigate();
   const [expandedParts, setExpandedParts] = useState<Set<number>>(new Set());
   const currentPartRef = useRef<HTMLDivElement>(null);
 
@@ -481,6 +484,30 @@ export const ProfessionalLegalChat: React.FC<ProfessionalLegalChatProps> = ({
             </div>
           );
         })}
+        
+        {/* Start Chat Button - shown when analysis is complete */}
+        {isComplete && (
+          <div className="mt-6 p-6 bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 border-2 border-primary/20 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  Analysis Complete
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  Continue your legal consultation with follow-up questions
+                </p>
+              </div>
+              <Button 
+                onClick={() => navigate('/chat')}
+                size="lg"
+                className="gap-2 shadow-lg hover:shadow-xl transition-all"
+              >
+                <MessageSquare className="h-5 w-5" />
+                Start Chat
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
