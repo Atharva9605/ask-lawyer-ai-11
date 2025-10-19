@@ -107,7 +107,7 @@ const Dashboard = () => {
       title: "Upload Document",
       description: "Analyze legal documents with AI",
       icon: Upload,
-      link: "/document-analysis",
+      link: "/upload-document", // UPDATED LINK
       primary: false
     },
     {

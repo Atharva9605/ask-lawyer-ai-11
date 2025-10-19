@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, RotateCcw, FileText, Clock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ArrowLeft, RotateCcw, FileText, Clock, Upload, X } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { LegalStreamingClient, SwotMatrixData } from '@/lib/legalStreamAPI';
 import { ProfessionalLegalChat } from '@/components/ProfessionalLegalChat';
 import SegmentedProgress from '@/components/SegmentedProgress';
@@ -15,10 +14,7 @@ export interface AnalysisState {
   deliverable: string | SwotMatrixData;
 }
 
-/**
- * Parse SWOT matrix from plain text format
- */
-const parseSwotFromText = (text: string): SwotMatrixData | null => {
+const localParseSwotFromText = (text: string): SwotMatrixData | null => {
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
   const swot: Partial<SwotMatrixData> = {};
 
@@ -63,36 +59,45 @@ const parseSwotFromText = (text: string): SwotMatrixData | null => {
   saveSection();
 
   if (swot.strength && swot.weakness && swot.opportunity && swot.threat) {
-    console.log('✅ SWOT parsed successfully:', swot);
     return swot as SwotMatrixData;
   }
-
-  console.warn('⚠️ SWOT parsing incomplete:', swot);
   return null;
 };
 
-const Analyze = () => {
+const UploadDocument = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
-  const [caseDescription, setCaseDescription] = useState('');
+  const [caseFile, setCaseFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [streamingClient, setStreamingClient] = useState<LegalStreamingClient | null>(null);
   const [analysisParts, setAnalysisParts] = useState<AnalysisState[]>([]);
-  const [lastSubmittedDescription, setLastSubmittedDescription] = useState('');
+  const [lastSubmittedFileName, setLastSubmittedFileName] = useState('');
   const [currentPartNumber, setCurrentPartNumber] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
+  const [summarizedFacts, setSummarizedFacts] = useState('');
 
   useEffect(() => {
-    // Clear any previous error on mount, but keep old analysis for view
-    setError(null);
     return () => streamingClient?.close();
   }, [streamingClient]);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setCaseFile(e.target.files[0]);
+    } else {
+      setCaseFile(null);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setCaseFile(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (caseDescription.trim().length < 50) return;
+    if (!caseFile) return;
 
     setLoading(true);
     setHasStarted(false);
@@ -100,8 +105,8 @@ const Analyze = () => {
     setAnalysisParts([]);
     setAnalysisComplete(false);
     setCurrentPartNumber(0);
-    setLastSubmittedDescription(caseDescription);
-    sessionStorage.removeItem('legal_case_description');
+    setLastSubmittedFileName(caseFile.name);
+    sessionStorage.removeItem('legal_case_description'); 
     streamingClient?.close();
 
     const partsMap = new Map<number, AnalysisState>();
@@ -117,29 +122,16 @@ const Analyze = () => {
     };
 
     const client = new LegalStreamingClient({
-      onStart: () => {
-        console.log('Analysis started');
-        setHasStarted(true);
-      },
-
-      onConversationId: (id: string) => {
-        sessionStorage.setItem('legal_conversation_id', id);
-      },
-
+      onStart: () => setHasStarted(true),
+      onConversationId: (id: string) => sessionStorage.setItem('legal_conversation_id', id),
       onDirectivePart: (partNumber: number) => {
         activePartNumber = partNumber;
         setCurrentPartNumber(partNumber);
         if (!partsMap.has(partNumber)) {
-          partsMap.set(partNumber, {
-            partNumber,
-            thoughts: [],
-            searchQueries: [],
-            deliverable: '',
-          });
+          partsMap.set(partNumber, { partNumber, thoughts: [], searchQueries: [], deliverable: '' });
         }
         scheduleUpdate();
       },
-
       onThinking: (content: string) => {
         const part = partsMap.get(activePartNumber);
         if (part) {
@@ -147,7 +139,6 @@ const Analyze = () => {
           scheduleUpdate();
         }
       },
-
       onSearchQueries: (queries: string[]) => {
         const part = partsMap.get(activePartNumber);
         if (part) {
@@ -155,29 +146,24 @@ const Analyze = () => {
           scheduleUpdate();
         }
       },
-
       onDeliverable: (content: string | SwotMatrixData) => {
         const part = partsMap.get(activePartNumber);
         if (part) {
           if (typeof content === 'object') {
             part.deliverable = content;
           } else {
-            part.deliverable =
-              (typeof part.deliverable === 'string' ? part.deliverable : '') + content + '\n';
+            part.deliverable = (typeof part.deliverable === 'string' ? part.deliverable : '') + content + '\n';
           }
           scheduleUpdate();
         }
       },
-
       onComplete: () => {
         if (updateTimer) clearTimeout(updateTimer);
 
         const part5 = partsMap.get(5);
         if (part5 && typeof part5.deliverable === 'string') {
-          const swotData = parseSwotFromText(part5.deliverable);
-          if (swotData) {
-            part5.deliverable = swotData;
-          }
+          const swotData = localParseSwotFromText(part5.deliverable);
+          if (swotData) part5.deliverable = swotData;
         }
 
         const sortedParts = Array.from(partsMap.values()).sort((a, b) => a.partNumber - b.partNumber);
@@ -185,24 +171,26 @@ const Analyze = () => {
         setAnalysisComplete(true);
         setLoading(false);
         setCurrentPartNumber(0);
-        
-        // Save the original text description to sessionStorage for chat context
-        // NOTE: The backend will override this with the summarized facts via [SUMMARIZED_FACTS_BEGIN]
-        sessionStorage.setItem('legal_case_description', lastSubmittedDescription);
+
+        const finalFacts = sessionStorage.getItem('legal_case_description') || lastSubmittedFileName;
+        setSummarizedFacts(finalFacts);
 
         toast({
-          title: 'Analysis Complete',
+          title: 'Directive Generation Complete',
           description: 'The full legal directive is now available.',
+          action: (
+            <Button onClick={() => navigate('/chat')} className="legal-button-hover">
+              Start Chat
+            </Button>
+          ),
         });
       },
-
       onError: (errorMsg: string) => {
-        console.error('Analysis error:', errorMsg);
         setError(errorMsg);
         setLoading(false);
         setHasStarted(false);
         toast({
-          title: 'Analysis Failed',
+          title: 'Directive Generation Failed',
           variant: 'destructive',
           description: errorMsg,
         });
@@ -211,21 +199,18 @@ const Analyze = () => {
 
     setStreamingClient(client);
 
-    // --- FIX: Convert text input to a virtual File/Blob for the file-upload endpoint ---
-    const textBlob = new Blob([caseDescription], { type: 'text/plain' });
-    const virtualFile = new File([textBlob], "case_description.txt", { type: 'text/plain' });
-    
     try {
-      // Pass the virtual File object to the startAnalysis method
-      await client.startAnalysis(virtualFile); 
-
-    } catch (err) {
-      console.error('Failed to start analysis:', err);
+      await client.startAnalysis(caseFile);
+    } catch {
       setError('Failed to connect to analysis service');
       setLoading(false);
       setHasStarted(false);
     }
   };
+
+  const chatCaseDescription = hasStarted
+    ? (summarizedFacts || lastSubmittedFileName || 'Analyzing Document...')
+    : (summarizedFacts || lastSubmittedFileName);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -234,48 +219,61 @@ const Analyze = () => {
           <Link to="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <Link to="/upload"> 
-            <Button variant="outline" size="sm">
-                Switch to File Upload
+              Back to Dashboard
             </Button>
           </Link>
         </div>
 
         <div className="max-w-4xl mx-auto">
           {!hasStarted && !loading && analysisParts.length === 0 && (
-            <form
-              onSubmit={handleSubmit}
-              className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 space-y-4"
-            >
-              <label htmlFor="case-description" className="block text-lg font-semibold">
-                Describe Your Legal Case
-              </label>
-              <Textarea
-                id="case-description"
-                placeholder="Provide all relevant details (minimum 50 characters)..."
-                value={caseDescription}
-                onChange={e => setCaseDescription(e.target.value)}
-                rows={8}
-                disabled={loading}
-                className="w-full"
-              />
-              <div className="flex items-center justify-between">
+            <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 space-y-4">
+              <h2 className="text-xl font-semibold">Upload Case Document for Analysis</h2>
+              <p className="text-sm text-muted-foreground">
+                Upload your legal document (PDF, DOCX, TXT, JSON) to generate the 11-part War Game Directive.
+              </p>
+
+              <div className="flex items-center space-x-4">
+                <input
+                  id="case-file-input"
+                  type="file"
+                  onChange={handleFileChange}
+                  accept=".txt,.json,.pdf"
+                  className="hidden"
+                />
+                <label
+                  htmlFor="case-file-input"
+                  className="cursor-pointer flex items-center justify-center p-4 border-2 border-dashed border-primary/50 text-primary rounded-lg hover:border-primary transition-colors flex-grow"
+                >
+                  <Upload className="w-5 h-5 mr-2" />
+                  {caseFile ? `File Selected: ${caseFile.name}` : 'Click to select file (PDF, TXT, JSON)'}
+                </label>
+                {caseFile && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleRemoveFile}
+                    title="Remove file"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
                 <span className="text-sm text-muted-foreground">
-                  {caseDescription.length} / 50 characters minimum
+                  {caseFile ? `Size: ${(caseFile.size / 1024).toFixed(2)} KB` : 'No file selected'}
                 </span>
-                <Button type="submit" disabled={caseDescription.trim().length < 50 || loading}>
+                <Button type="submit" disabled={!caseFile || loading}>
                   {loading ? (
                     <>
                       <Clock className="w-4 h-4 mr-2 animate-spin" />
-                      Generating...
+                      Uploading & Analyzing...
                     </>
                   ) : (
                     <>
                       <FileText className="w-4 h-4 mr-2" />
-                      Generate Analysis
+                      Generate Directive
                     </>
                   )}
                 </Button>
@@ -285,16 +283,12 @@ const Analyze = () => {
 
           {(hasStarted || loading || analysisParts.length > 0) && (
             <div className="space-y-4">
-              <SegmentedProgress
-                currentPart={currentPartNumber}
-                totalParts={11}
-                isComplete={analysisComplete}
-              />
+              <SegmentedProgress currentPart={currentPartNumber} totalParts={11} isComplete={analysisComplete} />
               <ProfessionalLegalChat
                 analysisParts={analysisParts}
                 isStreaming={loading}
                 isComplete={analysisComplete}
-                caseDescription={lastSubmittedDescription}
+                caseDescription={chatCaseDescription}
                 currentPartNumber={currentPartNumber}
               />
             </div>
@@ -309,8 +303,8 @@ const Analyze = () => {
                 size="sm"
                 onClick={() => {
                   setError(null);
-                  setCaseDescription(lastSubmittedDescription);
                   setHasStarted(false);
+                  setCaseFile(null);
                 }}
                 className="mt-2"
               >
@@ -325,4 +319,4 @@ const Analyze = () => {
   );
 };
 
-export default Analyze;
+export default UploadDocument;

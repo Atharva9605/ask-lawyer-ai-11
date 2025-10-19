@@ -1,433 +1,488 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  Bot,
-  Brain,
-  Search,
-  FileText,
-  CheckCircle,
-  ChevronDown,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import React, { useEffect, useRef, useState } from 'react';
+import { Brain, Search, FileText, CheckCircle, Bot, ChevronDown, Scale, Users, Shield, Lightbulb, GitBranch, Banknote, ListChecks, ThumbsUp, ThumbsDown, Sparkles, AlertTriangle, Gavel } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import AnalysisState from '@/pages/Analyze';
+import { SwotMatrixData } from '@/lib/legalStreamAPI';
 
-// Type definitions
-interface SwotMatrixData {
-  strength: string;
-  weakness: string;
-  opportunity: string;
-  threat: string;
+interface ProfessionalLegalChatProps {
+  analysisParts: AnalysisState[];
+  isStreaming: boolean;
+  isComplete: boolean;
+  caseDescription?: string;
+  currentPartNumber: number;
 }
 
-interface AnalysisState {
-  partNumber: number;
-  thoughts?: string[];
-  searchQueries?: string[];
-  deliverable?: string | SwotMatrixData;
-}
+const partMetadata = [
+  { title: "Mission Briefing", icon: Scale },
+  { title: "Legal Battlefield Analysis", icon: Gavel },
+  { title: "Asset & Intelligence Assessment", icon: Users },
+  { title: "Red Team Analysis", icon: Shield },
+  { title: "Strategic SWOT Matrix", icon: GitBranch },
+  { title: "Financial Exposure & Remedies", icon: Banknote },
+  { title: "Scenario War Gaming", icon: Lightbulb },
+  { title: "Leverage Points & Negotiation", icon: Lightbulb },
+  { title: "Execution Roadmap", icon: ListChecks },
+  { title: "Final Counsel Briefing", icon: FileText },
+  { title: "Mandatory Disclaimer", icon: FileText },
+];
 
-const TYPING_SPEED_MS = 17;
-const GRACE_COLLAPSE_MS = 1200;
-
-function formatTextElements(text: string) {
-  if (!text) return null;
-  const lines = text.split("\n");
-  const elements: React.ReactNode[] = [];
-  let bulletBuffer: string[] = [];
-
-  const flushBullets = (keyBase: string) => {
-    if (bulletBuffer.length === 0) return;
-    elements.push(
-      <ul key={`ul-${keyBase}`} className="ml-6 list-disc space-y-1">
-        {bulletBuffer.map((b, i) => (
-          <li key={`li-${keyBase}-${i}`} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-            {b}
-          </li>
-        ))}
-      </ul>
-    );
-    bulletBuffer = [];
-  };
-
-  lines.forEach((raw, idx) => {
-    const line = raw.trim();
-    if (!line) {
-      flushBullets(idx.toString());
-      elements.push(<div key={`sp-${idx}`} className="h-3" />);
-      return;
-    }
-
-    if (/^\d+\.\s+/.test(line) || (line === line.toUpperCase() && line.length < 80 && !line.includes(":"))) {
-      flushBullets(idx.toString());
-      elements.push(
-        <h2 key={`h2-${idx}`} className="text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-50 mt-4 mb-2">
-          {line.replace(/^\d+\.\s+/, "")}
-        </h2>
-      );
-      return;
-    }
-
-    const mid = line.match(/^\*\*(.+?)\*\*:\s*(.*)$/);
-    if (mid) {
-      flushBullets(idx.toString());
-      elements.push(
-        <div key={`h3-${idx}`} className="mt-3 mb-2">
-          <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">{mid[1]}</div>
-          {mid[2] ? <div className="text-sm text-slate-700 dark:text-slate-300 mt-1">{mid[2]}</div> : null}
-        </div>
-      );
-      return;
-    }
-
-    if (/^[-*•]\s+/.test(line)) {
-      const val = line.replace(/^[-*•]\s+/, "");
-      bulletBuffer.push(val);
-      return;
-    }
-
-    if (/^[A-Z]\.\s+/.test(line)) {
-      flushBullets(idx.toString());
-      elements.push(
-        <div key={`sub-${idx}`} className="mt-2 mb-2">
-          <div className="inline-block px-2 py-0.5 rounded text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
-            {line.split(" ")[0]}
-          </div>
-          <div className="text-sm text-slate-700 dark:text-slate-300 mt-1">{line.replace(/^[A-Z]\.\s+/, "")}</div>
-        </div>
-      );
-      return;
-    }
-
-    flushBullets(idx.toString());
-    elements.push(
-      <p key={`p-${idx}`} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">
-        {line}
-      </p>
-    );
-  });
-
-  flushBullets("end");
-  return elements;
-}
-
+/**
+ * SWOT Matrix Display Component - Enhanced Visual Design with Better Colors
+ */
 const SwotMatrixDisplay: React.FC<{ data: SwotMatrixData }> = ({ data }) => {
-  const quad = [
-    { title: "Strengths", value: data.strength },
-    { title: "Weaknesses", value: data.weakness },
-    { title: "Opportunities", value: data.opportunity },
-    { title: "Threats", value: data.threat },
+  const quadrants = [
+    { 
+      title: 'Strengths', 
+      content: data.strength, 
+      icon: ThumbsUp, 
+      gradient: 'from-emerald-600 to-teal-600',
+      bg: 'bg-white dark:bg-slate-800',
+      border: 'border-emerald-200 dark:border-emerald-800',
+      headerBg: 'bg-gradient-to-r from-emerald-500 to-teal-500',
+      text: 'text-slate-700 dark:text-slate-300',
+      iconColor: 'text-white'
+    },
+    { 
+      title: 'Weaknesses', 
+      content: data.weakness, 
+      icon: ThumbsDown, 
+      gradient: 'from-rose-600 to-pink-600',
+      bg: 'bg-white dark:bg-slate-800',
+      border: 'border-rose-200 dark:border-rose-800',
+      headerBg: 'bg-gradient-to-r from-rose-500 to-pink-500',
+      text: 'text-slate-700 dark:text-slate-300',
+      iconColor: 'text-white'
+    },
+    { 
+      title: 'Opportunities', 
+      content: data.opportunity, 
+      icon: Sparkles, 
+      gradient: 'from-blue-600 to-indigo-600',
+      bg: 'bg-white dark:bg-slate-800',
+      border: 'border-blue-200 dark:border-blue-800',
+      headerBg: 'bg-gradient-to-r from-blue-500 to-indigo-500',
+      text: 'text-slate-700 dark:text-slate-300',
+      iconColor: 'text-white'
+    },
+    { 
+      title: 'Threats', 
+      content: data.threat, 
+      icon: AlertTriangle, 
+      gradient: 'from-amber-600 to-orange-600',
+      bg: 'bg-white dark:bg-slate-800',
+      border: 'border-amber-200 dark:border-amber-800',
+      headerBg: 'bg-gradient-to-r from-amber-500 to-orange-500',
+      text: 'text-slate-700 dark:text-slate-300',
+      iconColor: 'text-white'
+    },
   ];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-      {quad.map((q) => (
-        <div key={q.title} className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-          <div className="flex items-center gap-3">
-            <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">{q.title}</div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-6 p-2">
+      {quadrants.map(({ title, content, icon: Icon, gradient, bg, border, headerBg, text, iconColor }) => (
+        <div 
+          key={title} 
+          className={`relative group ${bg} ${border} border-2 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1`}
+        >
+          {/* Gradient header */}
+          <div className={`${headerBg} px-5 py-3.5 flex items-center gap-3`}>
+            <div className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+              <Icon className={`h-5 w-5 ${iconColor}`} strokeWidth={2.5} />
+            </div>
+            <h3 className="text-lg font-bold text-white">
+              {title}
+            </h3>
           </div>
-          <div className="mt-3 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{q.value}</div>
+          
+          {/* Content */}
+          <div className="p-5">
+            <p className={`text-sm leading-relaxed ${text} whitespace-pre-wrap`}>
+              {content}
+            </p>
+          </div>
+          
+          {/* Decorative corner gradient */}
+          <div className={`absolute bottom-0 right-0 w-24 h-24 bg-gradient-to-tl ${gradient} opacity-5 rounded-tl-full pointer-events-none`}></div>
         </div>
       ))}
     </div>
   );
 };
 
-function partMetadataTitle(partNumber: number) {
-  const titles = [
-    "Mission Briefing",
-    "Legal Battlefield Analysis",
-    "Asset & Intelligence Assessment",
-    "Red Team Analysis",
-    "Strategic SWOT Matrix",
-    "Financial Exposure & Remedies",
-    "Scenario War Gaming",
-    "Leverage Points & Negotiation",
-    "Execution Roadmap",
-    "Final Counsel Briefing",
-    "Mandatory Disclaimer",
-  ];
-  return titles[partNumber - 1] || `Part ${partNumber}`;
-}
-
-// Component to handle individual part with typing effect
-const AnalysisPart: React.FC<{
-  part: AnalysisState;
-  isActive: boolean;
-  isExpanded: boolean;
-  onToggle: () => void;
-}> = ({ part, isActive, isExpanded, onToggle }) => {
-  const [displayed, setDisplayed] = useState("");
-  const prevRef = useRef("");
-  const mountedRef = useRef(true);
-
-  const rawDeliverable = typeof part.deliverable === "string" ? part.deliverable : "";
-
-  // Typing effect
-  useEffect(() => {
-    mountedRef.current = true;
-
-    if (rawDeliverable.length < prevRef.current.length) {
-      prevRef.current = rawDeliverable;
-      setDisplayed(rawDeliverable);
-      return;
-    }
-
-    if (rawDeliverable === prevRef.current) return;
-
-    const startIndex = prevRef.current.length;
-    const delta = rawDeliverable.slice(startIndex);
-
-    let i = 0;
-    const tick = () => {
-      if (!mountedRef.current) return;
-      if (i < delta.length) {
-        setDisplayed((s) => s + delta[i]);
-        i++;
-        setTimeout(tick, TYPING_SPEED_MS);
-      } else {
-        prevRef.current = rawDeliverable;
+/**
+ * Deliverable Content with professional, visually stunning formatting
+ */
+const DeliverableContent: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
+  const formatContent = (text: string) => {
+    const lines = text.split('\n');
+    const elements: JSX.Element[] = [];
+    let currentList: string[] = [];
+    let listType: 'bullet' | 'numbered' | null = null;
+    let listStartIndex = 0;
+    let inNestedStructure = false;
+    
+    const flushList = (index: number) => {
+      if (currentList.length > 0) {
+        if (listType === 'numbered') {
+          elements.push(
+            <ol key={`list-${listStartIndex}`} className="my-3 space-y-2.5 pl-6">
+              {currentList.map((item, i) => (
+                <li key={i} className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 pl-3 relative">
+                  <span className="absolute left-[-1.75rem] font-semibold text-primary">{i + 1}.</span>
+                  <span dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-slate-100 font-semibold">$1</strong>').replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-400">$1</em>') }} />
+                </li>
+              ))}
+            </ol>
+          );
+        } else {
+          elements.push(
+            <ul key={`list-${listStartIndex}`} className="my-3 space-y-2.5 pl-6">
+              {currentList.map((item, i) => (
+                <li key={i} className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 relative pl-3 before:content-[''] before:absolute before:left-[-1.25rem] before:top-[0.6em] before:w-1.5 before:h-1.5 before:rounded-full before:bg-primary">
+                  <span dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-slate-100 font-semibold">$1</strong>').replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-400">$1</em>') }} />
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        currentList = [];
+        listType = null;
       }
     };
-
-    if (isActive) {
-      tick();
-    } else {
-      setDisplayed(rawDeliverable);
-      prevRef.current = rawDeliverable;
-    }
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [rawDeliverable, isActive]);
-
-  useEffect(() => {
-    if (!rawDeliverable) {
-      prevRef.current = "";
-      setDisplayed("");
-    }
-  }, [rawDeliverable]);
-
-  const formatted = useMemo(() => formatTextElements(displayed), [displayed]);
-
-  const Icon = (() => {
-    if (part.partNumber === 1) return Search;
-    if (part.partNumber === 5) return FileText;
-    return Brain;
-  })();
+    
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      
+      // Skip empty lines
+      if (!trimmed) {
+        flushList(index);
+        inNestedStructure = false;
+        return;
+      }
+      
+      // Level 1 Headers: Numbers followed by period and capital text (e.g., "1. Mission Briefing")
+      const level1Match = trimmed.match(/^(\d+)\.\s+([A-Z][^:]*?)$/);
+      if (level1Match) {
+        flushList(index);
+        inNestedStructure = false;
+        elements.push(
+          <div key={index} className="mt-8 mb-5 first:mt-0">
+            <div className="flex items-center gap-3 pb-3 border-b-2 border-slate-200 dark:border-slate-700">
+              <span className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-lg flex items-center justify-center font-bold text-sm">
+                {level1Match[1]}
+              </span>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+                {level1Match[2]}
+              </h2>
+            </div>
+          </div>
+        );
+        return;
+      }
+      
+      // Level 2 Headers: Bold standalone text or text ending with colon (not inline with content)
+      if ((trimmed.match(/^\*\*[^*]+\*\*:?\s*$/) || trimmed.match(/^[A-Z][A-Za-z\s&(),]+:$/)) && !trimmed.match(/:\s+\w/)) {
+        flushList(index);
+        inNestedStructure = false;
+        const headerText = trimmed.replace(/\*\*/g, '').replace(/:$/, '').trim();
+        elements.push(
+          <h3 key={index} className="text-base font-bold text-slate-800 dark:text-slate-200 mt-6 mb-3 flex items-center gap-2.5 first:mt-2">
+            <span className="w-1 h-5 bg-gradient-to-b from-primary to-primary/60 rounded-full"></span>
+            <span>{headerText}</span>
+          </h3>
+        );
+        return;
+      }
+      
+      // Level 3 Headers: Bold inline text with content (e.g., "**Primary Objective:** content")
+      const level3Match = trimmed.match(/^\*\*([^*]+)\*\*:?\s+(.+)/);
+      if (level3Match) {
+        flushList(index);
+        inNestedStructure = false;
+        const formatted = level3Match[2]
+          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-900 dark:text-slate-100">$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-400">$1</em>');
+        
+        elements.push(
+          <div key={index} className="mb-3 bg-slate-50 dark:bg-slate-900/30 p-3 rounded-lg border-l-2 border-primary">
+            <span className="font-bold text-slate-900 dark:text-slate-100">{level3Match[1]}:</span>{' '}
+            <span className="text-sm text-slate-700 dark:text-slate-300" dangerouslySetInnerHTML={{ __html: formatted }} />
+          </div>
+        );
+        return;
+      }
+      
+      // Scenario blocks (e.g., "Scenario 1: Full Compliance")
+      const scenarioMatch = trimmed.match(/^(Scenario\s+\d+):\s*(.+)$/i);
+      if (scenarioMatch) {
+        flushList(index);
+        inNestedStructure = true;
+        elements.push(
+          <div key={index} className="mt-5 mb-3 bg-gradient-to-r from-primary/10 to-transparent p-4 rounded-lg border-l-4 border-primary">
+            <h4 className="font-bold text-base text-slate-900 dark:text-slate-100">
+              {scenarioMatch[1]}: <span className="text-primary">{scenarioMatch[2]}</span>
+            </h4>
+          </div>
+        );
+        return;
+      }
+      
+      // Numbered lists (e.g., "1. ", "2. ")
+      const numberedMatch = trimmed.match(/^(\d+)\.\s+(.+)/);
+      if (numberedMatch && trimmed.match(/^\d+\.\s+[a-z]/i)) {
+        if (listType !== 'numbered') {
+          flushList(index);
+          listType = 'numbered';
+          listStartIndex = index;
+        }
+        currentList.push(numberedMatch[2]);
+        return;
+      }
+      
+      // Bullet points (•, *, -, -)
+      if (trimmed.match(/^[•\-*]\s+/)) {
+        if (listType !== 'bullet') {
+          flushList(index);
+          listType = 'bullet';
+          listStartIndex = index;
+        }
+        const bulletText = trimmed.replace(/^[•\-*]\s+/, '');
+        currentList.push(bulletText);
+        return;
+      }
+      
+      // Special formatting for key-value pairs (e.g., "Description: text")
+      const keyValueMatch = trimmed.match(/^([A-Z][A-Za-z\s]+):\s+(.+)/);
+      if (keyValueMatch && inNestedStructure) {
+        flushList(index);
+        const formatted = keyValueMatch[2]
+          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-900 dark:text-slate-100">$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-400">$1</em>');
+        
+        elements.push(
+          <div key={index} className="mb-2 pl-4">
+            <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">{keyValueMatch[1]}:</span>{' '}
+            <span className="text-sm text-slate-700 dark:text-slate-300" dangerouslySetInnerHTML={{ __html: formatted }} />
+          </div>
+        );
+        return;
+      }
+      
+      // Regular paragraphs
+      flushList(index);
+      const formatted = trimmed
+        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-900 dark:text-slate-100">$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-300">$1</em>');
+      
+      const className = inNestedStructure 
+        ? "text-sm leading-relaxed text-slate-600 dark:text-slate-400 mb-2 pl-4"
+        : "text-sm leading-relaxed text-slate-700 dark:text-slate-300 mb-3";
+      
+      elements.push(
+        <p key={index} className={className}>
+          <span dangerouslySetInnerHTML={{ __html: formatted }} />
+        </p>
+      );
+    });
+    
+    flushList(lines.length);
+    return elements;
+  };
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, translateY: 6 }}
-      animate={{ opacity: 1, translateY: 0 }}
-      exit={{ opacity: 0, translateY: 6 }}
-    >
-      <div
-        className={`rounded-lg border shadow-sm overflow-hidden transition-shadow duration-300 ${
-          isActive
-            ? "border-indigo-400 bg-indigo-50 dark:bg-slate-800/40 shadow-lg"
-            : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40"
-        }`}
-      >
-        <div
-          onClick={onToggle}
-          className="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-9 h-9 rounded-md bg-slate-100 dark:bg-slate-800">
-              <Icon className="h-4 w-4 text-slate-700 dark:text-slate-200" />
-            </div>
-            <div>
-              <div className="text-sm font-medium text-slate-900 dark:text-slate-50">
-                {partMetadataTitle(part.partNumber)}
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Part {part.partNumber}
-                {isActive ? " • streaming…" : ""}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <ChevronDown className={`h-5 w-5 text-slate-500 transform transition-transform ${isExpanded ? "rotate-180" : ""}`} />
-          </div>
-        </div>
-
-        <motion.div
-          initial={false}
-          animate={{ height: isExpanded ? "auto" : 0, opacity: isExpanded ? 1 : 0 }}
-          transition={{ type: "tween", duration: 0.35 }}
-          className="px-4 overflow-hidden"
-        >
-          <div className="py-3">
-            {part.thoughts && part.thoughts.length > 0 && (
-              <div className="rounded-md border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">Internal Reasoning</div>
-                </div>
-                <div className="mt-2 space-y-2">
-                  {part.thoughts.map((t, i) => (
-                    <p key={i} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                      {t}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {part.searchQueries && part.searchQueries.length > 0 && (
-              <div className="rounded-md border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">Research Queries</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">({part.searchQueries.length})</div>
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {part.searchQueries.map((q, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-7 h-7 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-semibold text-slate-800 dark:text-slate-200">
-                        {i + 1}
-                      </div>
-                      <div className="flex-1 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                        {q}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {part.deliverable && (
-              <div className="rounded-md border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">Deliverable</div>
-                  {isActive && <div className="text-xs text-indigo-600 dark:text-indigo-300">live</div>}
-                </div>
-
-                {part.partNumber === 5 && typeof part.deliverable === "object" ? (
-                  <SwotMatrixDisplay data={part.deliverable as SwotMatrixData} />
-                ) : (
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    {formatted}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </motion.div>
+    <div className="relative">
+      {/* Subtle gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900/50 dark:via-slate-800/30 dark:to-slate-900/50 rounded-lg -z-10"></div>
+      
+      {/* Content with beautiful typography */}
+      <div className="relative px-6 py-5 space-y-1">
+        {formatContent(content)}
       </div>
-    </motion.div>
+      
+      {/* Bottom accent line */}
+      <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-700 to-transparent"></div>
+    </div>
   );
 };
 
-export default function ProfessionalLegalChat(props: {
-  analysisParts: AnalysisState[];
-  isStreaming: boolean;
-  isComplete: boolean;
-  caseDescription?: string;
-  currentPartNumber: number;
-}) {
-  const { analysisParts, isStreaming, isComplete, caseDescription, currentPartNumber } = props;
+export const ProfessionalLegalChat: React.FC<ProfessionalLegalChatProps> = ({
+  analysisParts, isStreaming, isComplete, caseDescription, currentPartNumber
+}) => {
+  const [expandedParts, setExpandedParts] = useState<Set<number>>(new Set());
+  const currentPartRef = useRef<HTMLDivElement>(null);
 
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [recentActive, setRecentActive] = useState<number | null>(null);
-  const collapseTimersRef = useRef<Map<number, number>>(new Map());
-
+  // Auto-expand current part, auto-collapse completed ones
   useEffect(() => {
-    if (!currentPartNumber) return;
-    const prev = recentActive;
-    setRecentActive(currentPartNumber);
-    setExpanded((s) => new Set(Array.from(s).concat(currentPartNumber)));
-
-    if (prev && prev !== currentPartNumber) {
-      const existing = collapseTimersRef.current.get(prev);
-      if (existing) {
-        clearTimeout(existing);
-        collapseTimersRef.current.delete(prev);
-      }
-      const id = window.setTimeout(() => {
-        setExpanded((s) => {
-          const ns = new Set(s);
-          ns.delete(prev);
-          return ns;
-        });
-        collapseTimersRef.current.delete(prev);
-      }, GRACE_COLLAPSE_MS);
-      collapseTimersRef.current.set(prev, id);
+    if (isStreaming && currentPartNumber > 0) {
+      setExpandedParts(new Set([currentPartNumber]));
+    } else if (isComplete) {
+      setExpandedParts(new Set());
     }
+  }, [currentPartNumber, isStreaming, isComplete]);
 
-    return () => {
-      collapseTimersRef.current.forEach((id) => clearTimeout(id));
-      collapseTimersRef.current.clear();
-    };
-  }, [currentPartNumber, recentActive]);
+  // Auto-scroll to current part
+  useEffect(() => {
+    if (currentPartNumber > 0) {
+      setTimeout(() => {
+        currentPartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [currentPartNumber]);
 
-  const toggle = (num: number) => {
-    setExpanded((s) => {
-      const ns = new Set(s);
-      if (ns.has(num)) ns.delete(num);
-      else ns.add(num);
-      return ns;
+  const togglePart = (partNumber: number) => {
+    setExpandedParts(prev => {
+      const newSet = new Set(prev);
+      newSet.has(partNumber) ? newSet.delete(partNumber) : newSet.add(partNumber);
+      return newSet;
     });
   };
 
-  const parts = useMemo(() => {
-    return [...analysisParts].sort((a, b) => a.partNumber - b.partNumber);
-  }, [analysisParts]);
-
   return (
-    <Card className="w-full bg-transparent border-0">
-      <CardHeader className="px-0">
-        <div className="flex justify-between items-start">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-md bg-gradient-to-br from-slate-100 to-white dark:from-slate-800 dark:to-slate-900">
-              <Bot className="h-6 w-6 text-slate-800 dark:text-slate-100" />
-            </div>
-            <div>
-              <CardTitle className="text-lg font-semibold">Legal Analysis Directive</CardTitle>
-              {caseDescription ? (
-                <div className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                  Analysis for: "{caseDescription.slice(0, 110)}{caseDescription.length > 110 ? "..." : ""}"
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {isStreaming && !isComplete && <Badge className="animate-pulse">Analyzing…</Badge>}
-            {isComplete && (
-              <Badge className="bg-green-600 text-white flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" />
-                Complete
-              </Badge>
-            )}
-          </div>
+    <Card className="w-full">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-3">
+            <Bot className="h-6 w-6 text-primary" />
+            <span>Legal Analysis Directive</span>
+          </CardTitle>
+          {isStreaming && !isComplete && (
+            <Badge variant="secondary" className="animate-pulse">
+              Analyzing...
+            </Badge>
+          )}
+          {isComplete && (
+            <Badge variant="default" className="bg-green-600">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Complete
+            </Badge>
+          )}
         </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4 px-0">
-        <div className="space-y-4">
-          {parts.map((part) => {
-            const isActive = isStreaming && part.partNumber === currentPartNumber;
-            const isExpanded = expanded.has(part.partNumber);
-
-            return (
-              <AnalysisPart
-                key={part.partNumber}
-                part={part}
-                isActive={isActive}
-                isExpanded={isExpanded}
-                onToggle={() => toggle(part.partNumber)}
-              />
-            );
-          })}
-        </div>
-
-        {parts.length === 0 && (
-          <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 p-4 text-sm text-slate-600">
-            No analysis yet — start an analysis to see streaming output here.
-          </div>
+        {caseDescription && (
+          <p className="text-sm text-muted-foreground pt-2">
+            Analysis for: "{caseDescription.substring(0, 100)}..."
+          </p>
         )}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {analysisParts.map(part => {
+          const isCurrent = isStreaming && part.partNumber === currentPartNumber;
+          const isExpanded = expandedParts.has(part.partNumber);
+          const metadata = partMetadata[part.partNumber - 1] || { title: `Part ${part.partNumber}`, icon: FileText };
+          const PartIcon = metadata.icon;
+
+          return (
+            <div 
+              key={part.partNumber} 
+              ref={isCurrent ? currentPartRef : null} 
+              className={`border rounded-lg transition-all duration-300 ${
+                isCurrent ? 'border-primary shadow-lg bg-primary/5' : 'border-border'
+              }`}
+            >
+              <div 
+                className="p-4 cursor-pointer flex items-center justify-between hover:bg-accent/50 transition-colors"
+                onClick={() => togglePart(part.partNumber)}
+              >
+                <div className="flex items-center gap-3">
+                  <PartIcon className={`h-5 w-5 ${isCurrent ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className="font-semibold">{metadata.title}</span>
+                  {isCurrent && <span className="text-xs text-muted-foreground animate-pulse">streaming...</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={isCurrent ? "default" : "outline"}>Part {part.partNumber}</Badge>
+                  <ChevronDown 
+                    className={`h-5 w-5 text-muted-foreground transition-transform duration-300 ${
+                      isExpanded ? 'rotate-180' : ''
+                    }`} 
+                  />
+                </div>
+              </div>
+
+              <div 
+                className={`transition-all duration-500 ease-in-out overflow-hidden ${
+                  isExpanded ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+                }`}
+              >
+                <div className="px-4 pb-4 space-y-4">
+                  {/* Thoughts Section */}
+                  {part.thoughts.length > 0 && (
+                    <div className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                      {/* Header */}
+                      <div className="bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-3.5 flex items-center gap-3">
+                        <div className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                          <Brain size={20} className="text-white"/>
+                        </div>
+                        <h4 className="text-lg font-bold text-white">
+                          Internal Reasoning
+                        </h4>
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="p-5 space-y-3">
+                        {part.thoughts.map((thought, idx) => (
+                          <div key={idx} className="relative pl-4 border-l-2 border-blue-200 dark:border-blue-800">
+                            <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg">
+                              {thought}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Search Queries Section */}
+                  {part.searchQueries.length > 0 && (
+                    <div className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                      {/* Header */}
+                      <div className="bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-3.5 flex items-center gap-3">
+                        <div className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                          <Search size={20} className="text-white"/>
+                        </div>
+                        <h4 className="text-lg font-bold text-white">
+                          Research Queries
+                        </h4>
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="p-5 space-y-2.5">
+                        {part.searchQueries.map((q, i) => (
+                          <div key={i} className="flex items-start gap-3 group">
+                            <div className="mt-1 flex-shrink-0 w-7 h-7 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg flex items-center justify-center">
+                              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{i + 1}</span>
+                            </div>
+                            <div className="flex-1 bg-slate-50 dark:bg-slate-900/50 px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                              <span className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{q}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Deliverable Content */}
+                  {part.deliverable && (
+                    <div className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-shadow duration-300">
+                      {part.partNumber === 5 && typeof part.deliverable === 'object' ? (
+                        <div className="relative z-10 p-2">
+                          <SwotMatrixDisplay data={part.deliverable} />
+                        </div>
+                      ) : (
+                        <div className="relative z-10">
+                          <DeliverableContent 
+                            content={part.deliverable as string} 
+                            isStreaming={isCurrent}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
-}
+};
+
