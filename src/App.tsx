@@ -8,9 +8,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Landing from "./pages/Landing";
 import Analyze from "./pages/Analyze";
 import Results from "./pages/Results";
-
-// Assuming you have saved the file upload component as UploadDocument.tsx
-import UploadDocument from "./pages/UploadDocument"; 
+import Chat from "./pages/Chat";
+import UploadDocument from "./pages/UploadDocument";
 
 const queryClient = new QueryClient();
 
@@ -21,13 +20,13 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/analyze" element={<Analyze />} />
-             {/* NEW ROUTE FOR FILE UPLOAD */}
-            <Route path="/upload" element={<UploadDocument />} />
-            <Route path="/results" element={<Results />} />
-          </Routes>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/analyze" element={<Analyze />} />
+            <Route path="/upload" element={<UploadDocument />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/results" element={<Results />} />
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
