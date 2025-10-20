@@ -2,7 +2,7 @@
  * The base URL for your deployed FastAPI backend.
  * Ensure this points to your live Render service.
  */
-const API_BASE_URL = "https://legal-backend-api-chatbot.onrender.com";
+const API_BASE_URL = "http://localhost:8000"; // Assuming this is correct
 
 /**
  * Defines the structured data format for the SWOT matrix,
@@ -36,7 +36,8 @@ export interface StreamingCallbacks {
 export class LegalStreamingClient {
   private abortController: AbortController | null = null;
   private callbacks: StreamingCallbacks;
-  private conversationId: string | null = null;
+  // conversationId is only used internally for parsing, but relies on sessionStorage for chat
+  private conversationId: string | null = null; 
   private inThinking = false;
   private inDeliverable = false;
   private currentPartNumber = 0;
@@ -60,21 +61,15 @@ export class LegalStreamingClient {
     let headers: HeadersInit = {};
     let method: string = 'POST';
 
-    // === LOGIC: Handle File Upload vs. Text Input ===
+    // === LOGIC: Handle File Upload (Real or Virtual) ===
     if (input instanceof File) {
       console.log('📁 Sending file upload...');
       const formData = new FormData();
-      formData.append('case_file', input); // Key must match FastAPI endpoint: case_file: UploadFile = File(...)
+      formData.append('case_file', input); // Key must match FastAPI endpoint: case_file
       body = formData;
-      // Note: Do not set Content-Type header for FormData, let browser handle it.
     } 
     else {
-      // NOTE: This JSON input logic is for the original /generate_directive endpoint, 
-      // which is now expecting a file. Reverting the backend to handle both is complex.
-      // Assuming for now, all directives go through the file endpoint (which accepts text content from file).
-      // For this implementation, we assume only file input is used, but keeping JSON logic structure 
-      // would require a separate endpoint in FastAPI. Sticking to the file endpoint for now.
-      console.log('⚠️ Text input is not directly supported by the current /generate_directive endpoint. Please use the UploadDocument component.');
+      console.log('⚠️ Text input mode is deprecated.');
       this.callbacks.onError?.("The text input mode is temporarily unavailable. Please upload a file.");
       return; 
     }
@@ -124,21 +119,23 @@ export class LegalStreamingClient {
    * @param query The user's question.
    */
   async sendChatMessage(query: string) {
-    if (!this.conversationId) {
-      this.callbacks.onError?.("No active conversation ID found.");
+    // FIX: Retrieve conversationId directly from sessionStorage for robustness
+    const storedId = sessionStorage.getItem('legal_conversation_id');
+    
+    if (!storedId) {
+      this.callbacks.onError?.("No active conversation ID found in session storage.");
       return;
     }
-    // This method needs the actual implementation for the /chat endpoint
-    // We will stub the stream reading logic for now
+    
     this.callbacks.onStart?.();
-    this.conversationId = sessionStorage.getItem('legal_conversation_id');
     const chatUrl = `${API_BASE_URL}/chat`;
 
     try {
         const response = await fetch(chatUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: query, conversation_id: this.conversationId }),
+            // FIX: Use the reliably fetched ID
+            body: JSON.stringify({ query: query, conversation_id: storedId }), 
         });
 
         if (!response.ok) {
@@ -177,7 +174,6 @@ export class LegalStreamingClient {
 
   /**
    * The core logic for parsing the raw SSE stream from the backend.
-   * It handles markers, JSON objects, and plain text.
    */
   private async processSSEStream(reader: ReadableStreamDefaultReader<Uint8Array>, decoder: TextDecoder) {
     let buffer = '';
@@ -259,9 +255,11 @@ export class LegalStreamingClient {
           }
 
           // Add logic to capture the summarized facts delivered by the backend
-          const summaryMatch = data.match(/\[SUMMARIZED_FACTS_BEGIN\]\s*(.+)/);
-          if (summaryMatch) {
-              sessionStorage.setItem('legal_case_description', summaryMatch[1].trim());
+          if (data.includes('[SUMMARIZED_FACTS_BEGIN]')) {
+              const summaryMatch = data.match(/\[SUMMARIZED_FACTS_BEGIN\]\s*(.+)/);
+              if (summaryMatch) {
+                  sessionStorage.setItem('legal_case_description', summaryMatch[1].trim());
+              }
               continue;
           }
           
