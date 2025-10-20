@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { AnalysisState } from '@/pages/Analyze';
 import { SwotMatrixData } from '@/lib/legalStreamAPI';
 import { useNavigate } from 'react-router-dom';
+import { ReferenceCasesDisplay } from '@/components/ReferenceCasesDisplay';
+import { LegalDisclaimer } from '@/components/LegalDisclaimer';
 
 interface ProfessionalLegalChatProps {
   analysisParts: AnalysisState[];
@@ -26,7 +28,7 @@ const partMetadata = [
   { title: "Leverage Points & Negotiation", icon: Lightbulb },
   { title: "Execution Roadmap", icon: ListChecks },
   { title: "Final Counsel Briefing", icon: FileText },
-  { title: "Mandatory Disclaimer", icon: FileText },
+  { title: "Reference Cases", icon: Scale },
 ];
 
 /**
@@ -469,6 +471,10 @@ export const ProfessionalLegalChat: React.FC<ProfessionalLegalChatProps> = ({
                         <div className="relative z-10 p-2">
                           <SwotMatrixDisplay data={part.deliverable} />
                         </div>
+                      ) : part.partNumber === 11 ? (
+                        <div className="relative z-10">
+                          <ReferenceCasesDisplay content={part.deliverable as string} />
+                        </div>
                       ) : (
                         <div className="relative z-10">
                           <DeliverableContent 
@@ -484,6 +490,13 @@ export const ProfessionalLegalChat: React.FC<ProfessionalLegalChatProps> = ({
             </div>
           );
         })}
+        
+        {/* Legal Disclaimer - shown when analysis is complete */}
+        {isComplete && (
+          <div className="mt-6">
+            <LegalDisclaimer />
+          </div>
+        )}
         
         {/* Start Chat Button - shown when analysis is complete */}
         {isComplete && (
