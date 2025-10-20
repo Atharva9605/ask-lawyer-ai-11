@@ -3,6 +3,12 @@ import { Brain, Search, FileText, Target, CheckCircle, ExternalLink } from 'luci
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface DirectivePart {
   partNumber: number;
@@ -168,19 +174,38 @@ export const StreamingAnalysisDisplay: React.FC<StreamingAnalysisDisplayProps> =
 
             {/* Analysis Content */}
             <div className="p-4 space-y-4">
-              {/* Thoughts Section */}
+              {/* Internal Reasoning - Perplexity style with tooltips */}
               {parsedSections.thoughts.length > 0 && (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                    💡 Thoughts
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
+                    🧠 Internal Reasoning
                   </div>
-                  {parsedSections.thoughts.map((thought, index) => (
-                    <div key={index} className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
-                      <pre className="text-xs font-mono whitespace-pre-wrap text-blue-800">
-                        {thought}
-                      </pre>
+                  <TooltipProvider>
+                    <div className="flex flex-wrap gap-2">
+                      {parsedSections.thoughts.map((thought, index) => {
+                        // Extract first sentence or first 60 chars as the point
+                        const firstSentence = thought.split(/[.!?]/)[0].trim() || thought.substring(0, 60);
+                        const summary = firstSentence.length > 50 ? firstSentence.substring(0, 50) + '...' : firstSentence;
+                        
+                        return (
+                          <Tooltip key={index} delayDuration={200}>
+                            <TooltipTrigger asChild>
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-full text-xs font-medium text-primary cursor-help transition-colors">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                                {summary}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent 
+                              side="bottom" 
+                              className="max-w-sm p-3 bg-popover text-popover-foreground shadow-lg"
+                            >
+                              <p className="text-xs leading-relaxed whitespace-pre-wrap">{thought}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
                     </div>
-                  ))}
+                  </TooltipProvider>
                 </div>
               )}
 

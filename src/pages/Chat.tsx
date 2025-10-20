@@ -13,6 +13,7 @@ import {
     Sparkles,
     MessageSquare
 } from "lucide-react";
+import { MessageContent } from "@/components/MessageContent";
 import { toast } from "@/hooks/use-toast";
 import { LegalStreamingClient } from "@/lib/legalStreamAPI";
 import { motion, AnimatePresence } from "framer-motion";
@@ -285,18 +286,20 @@ const Chat = () => {
                                     </Avatar>
                                     
                                     <div className={`flex-1 max-w-[80%] ${message.sender === 'user' ? 'items-end' : 'items-start'} flex flex-col gap-2`}>
-                                        <div className={`
+                                         <div className={`
                                             px-5 py-3 rounded-2xl shadow-sm
                                             ${message.sender === 'user' 
                                                 ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm' 
                                                 : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-tl-sm'
                                             }
                                         `}>
-                                            <p className={`text-sm leading-relaxed whitespace-pre-wrap ${
-                                                message.sender === 'user' ? 'text-white' : 'text-slate-700 dark:text-slate-300'
-                                            }`}>
-                                                {message.content}
-                                            </p>
+                                            {message.sender === 'user' ? (
+                                                <p className="text-sm leading-relaxed whitespace-pre-wrap text-white">
+                                                    {message.content}
+                                                </p>
+                                            ) : (
+                                                <MessageContent content={message.content} className="text-sm" />
+                                            )}
                                         </div>
                                         <span className="text-xs text-muted-foreground px-1">
                                             {formatTimestamp(message.timestamp)}
