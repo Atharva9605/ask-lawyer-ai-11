@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +13,6 @@ import {
     Sparkles,
     MessageSquare
 } from "lucide-react";
-import { MessageContent } from "@/components/MessageContent";
 import { toast } from "@/hooks/use-toast";
 import { LegalStreamingClient } from "@/lib/legalStreamAPI";
 import { motion, AnimatePresence } from "framer-motion";
@@ -35,9 +34,10 @@ const Chat = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [currentResponse, setCurrentResponse] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-    // FIX 1: Use a mutable ref to reliably capture the full stream content, bypassing stale closure issues.
-    const streamedResponseRef = useRef(''); 
+    
+    // Use ref to accumulate streamed content and avoid stale closures
+    const streamedResponseRef = useRef('');
+    const isStreamingRef = useRef(false);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -47,10 +47,52 @@ const Chat = () => {
         scrollToBottom();
     }, [messages, currentResponse]);
 
+    // Memoized callbacks to prevent recreation
+    const handleDeliverable = useCallback((content: string) => {
+        if (typeof content === 'string' && isStreamingRef.current) {
+            streamedResponseRef.current += content;
+            setCurrentResponse(prev => prev + content);
+        }
+    }, []);
+
+    const handleComplete = useCallback(() => {
+        const finalResponse = streamedResponseRef.current.trim();
+        isStreamingRef.current = false;
+        
+        if (finalResponse) {
+            const aiMessage: Message = {
+                id: `${Date.now()}-${Math.random()}`,
+                content: finalResponse,
+                sender: 'ai',
+                timestamp: new Date()
+            };
+            
+            setMessages(prev => [...prev, aiMessage]);
+        }
+        
+        // Reset state
+        streamedResponseRef.current = '';
+        setCurrentResponse('');
+        setLoading(false);
+    }, []);
+
+    const handleError = useCallback((error: string) => {
+        toast({
+            title: "Error",
+            description: error || "An unexpected error occurred",
+            variant: "destructive"
+        });
+        
+        // Clean up on error
+        streamedResponseRef.current = '';
+        setCurrentResponse('');
+        setLoading(false);
+        isStreamingRef.current = false;
+    }, []);
+
     useEffect(() => {
         const storedConversationId = sessionStorage.getItem('legal_conversation_id');
         
-        // 1. Initial Check and Redirect
         if (!storedConversationId) {
             toast({
                 title: "No Active Session",
@@ -61,69 +103,23 @@ const Chat = () => {
             return;
         }
 
-        // 2. Client Initialization
         setConversationId(storedConversationId);
         
         const client = new LegalStreamingClient({
-            onDeliverable: (content: string) => {
-                if (typeof content === 'string') {
-                    // FIX 2: Update the mutable ref and the state (for UI rendering)
-                    streamedResponseRef.current += content; 
-                    setCurrentResponse(prev => prev + content);
-                }
-            },
-            onComplete: () => {
-                // FIX 3: Read the final value from the mutable ref
-                const finalResponse = streamedResponseRef.current;
-                
-                if (finalResponse.trim()) { 
-                    // Use setTimeout to ensure currentResponse state has fully rendered/settled 
-                    // before moving it to the final messages array.
-                    setTimeout(() => {
-                        const aiMessage: Message = {
-                            id: Date.now().toString(),
-                            content: finalResponse, // Use the final content from the ref
-                            sender: 'ai',
-                            timestamp: new Date()
-                        };
-                        setMessages(prev => [...prev, aiMessage]);
-                        
-                        // Clear ref and state only AFTER message is persisted
-                        streamedResponseRef.current = ''; 
-                        setCurrentResponse('');
-                        setLoading(false);
-                    }, 50); 
-                } else {
-                    // If stream was empty, just reset indicators
-                    streamedResponseRef.current = '';
-                    setCurrentResponse('');
-                    setLoading(false);
-                }
-            },
-            onError: (error: string) => {
-                toast({
-                    title: "Error",
-                    description: error,
-                    variant: "destructive"
-                });
-                // Clear state and ref on error
-                streamedResponseRef.current = '';
-                setCurrentResponse('');
-                setLoading(false);
-            }
+            onDeliverable: handleDeliverable,
+            onComplete: handleComplete,
+            onError: handleError
         });
+        
         setStreamingClient(client);
 
-        // 3. Cleanup
         return () => {
             client.close();
         };
-        // Dependencies are now clean as the callbacks rely on the ref for mutable data
-    }, [navigate]); 
+    }, [navigate, handleDeliverable, handleComplete, handleError]);
 
     const handleSend = async () => {
-        // FIX 4: Check conversationId state before sending
-        if (!input.trim() || !streamingClient || loading || !conversationId) { 
+        if (!input.trim() || !streamingClient || loading || !conversationId) {
             if (!conversationId) {
                 toast({
                     title: "Session Error",
@@ -134,9 +130,10 @@ const Chat = () => {
             return;
         }
 
+        const trimmedInput = input.trim();
         const userMessage: Message = {
-            id: Date.now().toString(),
-            content: input,
+            id: `${Date.now()}-${Math.random()}`,
+            content: trimmedInput,
             sender: 'user',
             timestamp: new Date()
         };
@@ -144,35 +141,51 @@ const Chat = () => {
         setMessages(prev => [...prev, userMessage]);
         setInput('');
         setLoading(true);
-        // FIX 5: Clear ref and state before starting a new stream
-        streamedResponseRef.current = ''; 
-        setCurrentResponse(''); 
+        isStreamingRef.current = true;
+        
+        // Clear previous stream data
+        streamedResponseRef.current = '';
+        setCurrentResponse('');
 
-        // The client retrieves the conversation ID from sessionStorage internally
-        await streamingClient.sendChatMessage(input);
+        try {
+            await streamingClient.sendChatMessage(trimmedInput);
+        } catch (error) {
+            handleError(error instanceof Error ? error.message : "Failed to send message");
+        }
     };
 
     const exportChatTranscript = () => {
         try {
+            if (messages.length === 0) {
+                toast({
+                    title: "Nothing to Export",
+                    description: "There are no messages to export yet.",
+                    variant: "destructive"
+                });
+                return;
+            }
+
             const transcript = messages.map(m => 
-                `[${m.sender.toUpperCase()}] ${m.content}`
-            ).join('\n\n');
+                `[${m.sender.toUpperCase()}] ${new Date(m.timestamp).toLocaleString()}\n${m.content}`
+            ).join('\n\n' + '='.repeat(80) + '\n\n');
             
             const blob = new Blob([transcript], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `legal-chat-${new Date().toISOString()}.txt`;
+            a.download = `legal-chat-${new Date().toISOString().split('T')[0]}.txt`;
+            document.body.appendChild(a);
             a.click();
+            document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
             toast({
-                title: "Export successful",
+                title: "Export Successful",
                 description: "Chat transcript downloaded."
             });
         } catch (error) {
             toast({
-                title: "Export failed",
+                title: "Export Failed",
                 description: "Failed to export chat transcript.",
                 variant: "destructive"
             });
@@ -184,7 +197,7 @@ const Chat = () => {
             hour: '2-digit',
             minute: '2-digit',
             hour12: true
-        }).format(date);
+        }).format(new Date(date));
     };
 
     return (
@@ -286,20 +299,18 @@ const Chat = () => {
                                     </Avatar>
                                     
                                     <div className={`flex-1 max-w-[80%] ${message.sender === 'user' ? 'items-end' : 'items-start'} flex flex-col gap-2`}>
-                                         <div className={`
+                                        <div className={`
                                             px-5 py-3 rounded-2xl shadow-sm
                                             ${message.sender === 'user' 
                                                 ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm' 
                                                 : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-tl-sm'
                                             }
                                         `}>
-                                            {message.sender === 'user' ? (
-                                                <p className="text-sm leading-relaxed whitespace-pre-wrap text-white">
-                                                    {message.content}
-                                                </p>
-                                            ) : (
-                                                <MessageContent content={message.content} className="text-sm" />
-                                            )}
+                                            <p className={`text-sm leading-relaxed whitespace-pre-wrap ${
+                                                message.sender === 'user' ? 'text-white' : 'text-slate-700 dark:text-slate-300'
+                                            }`}>
+                                                {message.content}
+                                            </p>
                                         </div>
                                         <span className="text-xs text-muted-foreground px-1">
                                             {formatTimestamp(message.timestamp)}

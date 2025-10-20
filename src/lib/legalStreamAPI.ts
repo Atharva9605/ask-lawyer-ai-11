@@ -2,7 +2,7 @@
  * The base URL for your deployed FastAPI backend.
  * Ensure this points to your live Render service.
  */
-const API_BASE_URL = "https://legal-backend-api-chatbot.onrender.com";
+const API_BASE_URL = "http://localhost:8000"; // Replace with your actual backend URL
 
 /**
  * Defines the structured data format for the SWOT matrix,

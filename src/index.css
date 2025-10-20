@@ -434,6 +434,12 @@
   
   .dark .case-highlight {
     background-color: hsl(270 50% 50%)/20%;
-    color: hsl(270 50% 60%);
+    color: hsl(268, 100%, 97%);
   }
+}
+a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+.card {
+  padding: 2em;
 }

@@ -40,3 +40,51 @@
 .read-the-docs {
   color: #888;
 }
+
+.legal-message-content {
+  word-wrap: break-word;
+}
+
+.legal-formatted-text p {
+  margin: 0.5em 0;
+}
+
+.legal-formatted-text a.legal-link {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.legal-code-block {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.5em 0.75em;
+  border-radius: 0.4em;
+  font-family: monospace;
+  font-size: 0.9em;
+  overflow-x: auto;
+}
+
+.legal-inline-code {
+  background: rgba(0, 0, 0, 0.07);
+  padding: 0.15em 0.3em;
+  border-radius: 0.3em;
+  font-family: monospace;
+}
+
+.legal-bullet-list {
+  list-style-type: disc;
+  margin-left: 1.5em;
+}
+
+.legal-numbered-list {
+  list-style-type: decimal;
+  margin-left: 1.5em;
+}
+.legal-blockquote {
+  border-left: 4px solid #ddd;
+  padding-left: 1em;
+  color: #555;
+  margin: 1em 0;
+}
+.legal-blockquote p {
+  margin: 0.5em 0;
+}
