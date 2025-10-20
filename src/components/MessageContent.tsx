@@ -16,19 +16,14 @@ export const MessageContent: React.FC<MessageContentProps> = ({
 }) => {
   const { toast } = useToast();
 
-  // Improved regex patterns
+  // Enhanced regex patterns for better markdown support
   const patterns = useMemo(() => ({
-    // More comprehensive URL pattern
-    url: /(https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*))/g,
-    // More robust email pattern
-    email: /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g,
-    // Better phone pattern with international support
-    phone: /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g,
-    // Code blocks with language support
+    // Code blocks with language support (must be processed first)
     codeBlock: /```(\w+)?\n?([\s\S]*?)```/g,
     // Inline code
     inlineCode: /`([^`\n]+)`/g,
-    // Bold
+    // Bold with ++ or **
+    boldPlus: /\+\+([^\+\n]+)\+\+/g,
     bold: /\*\*([^\*\n]+)\*\*/g,
     // Italic (but not inside bold)
     italic: /(?<!\*)\*([^\*\n]+)\*(?!\*)/g,
@@ -36,14 +31,18 @@ export const MessageContent: React.FC<MessageContentProps> = ({
     h1: /^# (.+)$/gm,
     h2: /^## (.+)$/gm,
     h3: /^### (.+)$/gm,
-    // Unordered lists
-    unorderedList: /^[\s]*[-*+]\s+(.+)$/gm,
-    // Ordered lists
-    orderedList: /^[\s]*\d+\.\s+(.+)$/gm,
+    // Nested lists - capture indentation
+    nestedList: /^([ \t]*)([-*+•]|\d+\.)\s+(.+)$/gm,
     // Blockquotes
     blockquote: /^>\s+(.+)$/gm,
     // Horizontal rule
     hr: /^[-*_]{3,}$/gm,
+    // URLs
+    url: /(https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*))/g,
+    // Email
+    email: /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g,
+    // Phone
+    phone: /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g,
   }), []);
 
   const copyToClipboard = async () => {
@@ -107,8 +106,11 @@ export const MessageContent: React.FC<MessageContentProps> = ({
     // Escape remaining HTML after extracting code
     processed = escapeHtml(processed);
 
-    // Bold (must come before italic)
-    processed = processed.replace(patterns.bold, '<strong>$1</strong>');
+    // Bold with ++ (must come before regular bold)
+    processed = processed.replace(patterns.boldPlus, '<strong class="font-semibold">$1</strong>');
+
+    // Bold with ** (must come before italic)
+    processed = processed.replace(patterns.bold, '<strong class="font-semibold">$1</strong>');
 
     // Italic
     processed = processed.replace(patterns.italic, '<em>$1</em>');
@@ -141,52 +143,54 @@ export const MessageContent: React.FC<MessageContentProps> = ({
       return `<a href="tel:+${clean}" class="legal-link">${phone}</a>`;
     });
 
-    // Lists - Process unordered lists
-    const unorderedListItems: string[] = [];
-    processed = processed.replace(patterns.unorderedList, (match, content) => {
-      const placeholder = `__UL_ITEM_${unorderedListItems.length}__`;
-      unorderedListItems.push(`<li class="legal-list-item">${content}</li>`);
-      return placeholder;
-    });
+    // Process nested lists with proper indentation
+    const lines = processed.split('\n');
+    const listStack: Array<{ type: 'ul' | 'ol'; indent: number }> = [];
+    const processedLines: string[] = [];
 
-    // Lists - Process ordered lists
-    const orderedListItems: string[] = [];
-    processed = processed.replace(patterns.orderedList, (match, content) => {
-      const placeholder = `__OL_ITEM_${orderedListItems.length}__`;
-      orderedListItems.push(`<li class="legal-list-item">${content}</li>`);
-      return placeholder;
-    });
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const match = line.match(/^([ \t]*)([-*+•]|\d+\.)\s+(.+)$/);
 
-    // Group consecutive list items
-    if (unorderedListItems.length > 0) {
-      const ulPattern = new RegExp(`(__UL_ITEM_\\d+__\n?)+`, 'g');
-      processed = processed.replace(ulPattern, (match) => {
-        const items = match
-          .split('\n')
-          .filter(Boolean)
-          .map((placeholder) => {
-            const index = parseInt(placeholder.match(/\d+/)?.[0] || '0');
-            return unorderedListItems[index];
-          })
-          .join('');
-        return `<ul class="legal-bullet-list">${items}</ul>`;
-      });
+      if (match) {
+        const [, indent, marker, content] = match;
+        const indentLevel = Math.floor(indent.length / 2); // 2 spaces = 1 level
+        const isOrdered = /\d+\./.test(marker);
+        const listType = isOrdered ? 'ol' : 'ul';
+
+        // Close lists if we're at a lower indent level
+        while (listStack.length > 0 && listStack[listStack.length - 1].indent >= indentLevel) {
+          const closingList = listStack.pop()!;
+          processedLines.push(closingList.type === 'ul' ? '</ul>' : '</ol>');
+        }
+
+        // Open new list if needed
+        if (listStack.length === 0 || listStack[listStack.length - 1].indent < indentLevel) {
+          const listClass = listType === 'ul' 
+            ? `legal-bullet-list legal-indent-${indentLevel}` 
+            : `legal-numbered-list legal-indent-${indentLevel}`;
+          processedLines.push(`<${listType} class="${listClass}">`);
+          listStack.push({ type: listType, indent: indentLevel });
+        }
+
+        processedLines.push(`<li class="legal-list-item">${content}</li>`);
+      } else {
+        // Close all open lists when we hit a non-list line
+        while (listStack.length > 0) {
+          const closingList = listStack.pop()!;
+          processedLines.push(closingList.type === 'ul' ? '</ul>' : '</ol>');
+        }
+        processedLines.push(line);
+      }
     }
 
-    if (orderedListItems.length > 0) {
-      const olPattern = new RegExp(`(__OL_ITEM_\\d+__\n?)+`, 'g');
-      processed = processed.replace(olPattern, (match) => {
-        const items = match
-          .split('\n')
-          .filter(Boolean)
-          .map((placeholder) => {
-            const index = parseInt(placeholder.match(/\d+/)?.[0] || '0');
-            return orderedListItems[index];
-          })
-          .join('');
-        return `<ol class="legal-numbered-list">${items}</ol>`;
-      });
+    // Close any remaining open lists
+    while (listStack.length > 0) {
+      const closingList = listStack.pop()!;
+      processedLines.push(closingList.type === 'ul' ? '</ul>' : '</ol>');
     }
+
+    processed = processedLines.join('\n');
 
     // Restore inline code
     inlineCodes.forEach((code, i) => {
@@ -228,7 +232,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({
   return (
     <div className={`legal-message-content ${className}`}>
       <div
-        className="legal-formatted-text text-sm leading-relaxed text-slate-700 dark:text-slate-300"
+        className="legal-formatted-text text-[15px] leading-relaxed text-foreground"
         dangerouslySetInnerHTML={{ __html: formattedContent }}
       />
 
@@ -248,7 +252,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .legal-code-block {
           background: #1e293b;
           color: #e2e8f0;
@@ -283,8 +287,9 @@ export const MessageContent: React.FC<MessageContentProps> = ({
 
         .legal-bullet-list,
         .legal-numbered-list {
-          margin: 0.75rem 0;
-          padding-left: 1.5rem;
+          margin: 0.5rem 0;
+          padding-left: 1.25rem;
+          line-height: 1.7;
         }
 
         .legal-numbered-list {
@@ -295,8 +300,35 @@ export const MessageContent: React.FC<MessageContentProps> = ({
           list-style-type: disc;
         }
 
+        /* Nested list indentation */
+        .legal-indent-0 {
+          padding-left: 1.25rem;
+        }
+
+        .legal-indent-1 {
+          padding-left: 2rem;
+          list-style-type: circle;
+        }
+
+        .legal-indent-2 {
+          padding-left: 2.75rem;
+          list-style-type: square;
+        }
+
+        .legal-indent-3 {
+          padding-left: 3.5rem;
+          list-style-type: disc;
+        }
+
         .legal-list-item {
-          margin: 0.25rem 0;
+          margin: 0.375rem 0;
+          padding-left: 0.25rem;
+          color: hsl(var(--foreground));
+        }
+
+        .legal-list-item strong {
+          font-weight: 600;
+          color: hsl(var(--foreground));
         }
 
         .legal-blockquote {
@@ -324,6 +356,10 @@ export const MessageContent: React.FC<MessageContentProps> = ({
 
         :global(.dark) .legal-hr {
           border-top-color: #334155;
+        }
+
+        :global(.dark) .legal-code-block {
+          background: #0f172a;
         }
       `}</style>
     </div>
