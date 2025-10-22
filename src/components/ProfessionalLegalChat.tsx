@@ -8,8 +8,6 @@ import { SwotMatrixData } from '@/lib/legalStreamAPI';
 import { useNavigate } from 'react-router-dom';
 import { ReferenceCasesDisplay } from '@/components/ReferenceCasesDisplay';
 import { LegalDisclaimer } from '@/components/LegalDisclaimer';
-import { MessageContent } from '@/components/MessageContent';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface ProfessionalLegalChatProps {
   analysisParts: AnalysisState[];
@@ -116,13 +114,207 @@ const SwotMatrixDisplay: React.FC<{ data: SwotMatrixData }> = ({ data }) => {
   );
 };
 
+/**
+ * Deliverable Content with professional, visually stunning formatting
+ */
+const DeliverableContent: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
+  const formatContent = (text: string) => {
+    const lines = text.split('\n');
+    const elements: JSX.Element[] = [];
+    let currentList: string[] = [];
+    let listType: 'bullet' | 'numbered' | null = null;
+    let listStartIndex = 0;
+    let inNestedStructure = false;
+    
+    const flushList = (index: number) => {
+      if (currentList.length > 0) {
+        if (listType === 'numbered') {
+          elements.push(
+            <ol key={`list-${listStartIndex}`} className="my-3 space-y-2.5 pl-6">
+              {currentList.map((item, i) => (
+                <li key={i} className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 pl-3 relative">
+                  <span className="absolute left-[-1.75rem] font-semibold text-primary">{i + 1}.</span>
+                  <span dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-slate-100 font-semibold">$1</strong>').replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-400">$1</em>') }} />
+                </li>
+              ))}
+            </ol>
+          );
+        } else {
+          elements.push(
+            <ul key={`list-${listStartIndex}`} className="my-3 space-y-2.5 pl-6">
+              {currentList.map((item, i) => (
+                <li key={i} className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 relative pl-3 before:content-[''] before:absolute before:left-[-1.25rem] before:top-[0.6em] before:w-1.5 before:h-1.5 before:rounded-full before:bg-primary">
+                  <span dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-slate-100 font-semibold">$1</strong>').replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-400">$1</em>') }} />
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        currentList = [];
+        listType = null;
+      }
+    };
+    
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      
+      // Skip empty lines
+      if (!trimmed) {
+        flushList(index);
+        inNestedStructure = false;
+        return;
+      }
+      
+      // Level 1 Headers: Numbers followed by period and capital text (e.g., "1. Mission Briefing")
+      const level1Match = trimmed.match(/^(\d+)\.\s+([A-Z][^:]*?)$/);
+      if (level1Match) {
+        flushList(index);
+        inNestedStructure = false;
+        elements.push(
+          <div key={index} className="mt-8 mb-5 first:mt-0">
+            <div className="flex items-center gap-3 pb-3 border-b-2 border-slate-200 dark:border-slate-700">
+              <span className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-lg flex items-center justify-center font-bold text-sm">
+                {level1Match[1]}
+              </span>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+                {level1Match[2]}
+              </h2>
+            </div>
+          </div>
+        );
+        return;
+      }
+      
+      // Level 2 Headers: Bold standalone text or text ending with colon (not inline with content)
+      if ((trimmed.match(/^\*\*[^*]+\*\*:?\s*$/) || trimmed.match(/^[A-Z][A-Za-z\s&(),]+:$/)) && !trimmed.match(/:\s+\w/)) {
+        flushList(index);
+        inNestedStructure = false;
+        const headerText = trimmed.replace(/\*\*/g, '').replace(/:$/, '').trim();
+        elements.push(
+          <h3 key={index} className="text-base font-bold text-slate-800 dark:text-slate-200 mt-6 mb-3 flex items-center gap-2.5 first:mt-2">
+            <span className="w-1 h-5 bg-gradient-to-b from-primary to-primary/60 rounded-full"></span>
+            <span>{headerText}</span>
+          </h3>
+        );
+        return;
+      }
+      
+      // Level 3 Headers: Bold inline text with content (e.g., "**Primary Objective:** content")
+      const level3Match = trimmed.match(/^\*\*([^*]+)\*\*:?\s+(.+)/);
+      if (level3Match) {
+        flushList(index);
+        inNestedStructure = false;
+        const formatted = level3Match[2]
+          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-900 dark:text-slate-100">$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-400">$1</em>');
+        
+        elements.push(
+          <div key={index} className="mb-3 bg-slate-50 dark:bg-slate-900/30 p-3 rounded-lg border-l-2 border-primary">
+            <span className="font-bold text-slate-900 dark:text-slate-100">{level3Match[1]}:</span>{' '}
+            <span className="text-sm text-slate-700 dark:text-slate-300" dangerouslySetInnerHTML={{ __html: formatted }} />
+          </div>
+        );
+        return;
+      }
+      
+      // Scenario blocks (e.g., "Scenario 1: Full Compliance")
+      const scenarioMatch = trimmed.match(/^(Scenario\s+\d+):\s*(.+)$/i);
+      if (scenarioMatch) {
+        flushList(index);
+        inNestedStructure = true;
+        elements.push(
+          <div key={index} className="mt-5 mb-3 bg-gradient-to-r from-primary/10 to-transparent p-4 rounded-lg border-l-4 border-primary">
+            <h4 className="font-bold text-base text-slate-900 dark:text-slate-100">
+              {scenarioMatch[1]}: <span className="text-primary">{scenarioMatch[2]}</span>
+            </h4>
+          </div>
+        );
+        return;
+      }
+      
+      // Numbered lists (e.g., "1. ", "2. ")
+      const numberedMatch = trimmed.match(/^(\d+)\.\s+(.+)/);
+      if (numberedMatch && trimmed.match(/^\d+\.\s+[a-z]/i)) {
+        if (listType !== 'numbered') {
+          flushList(index);
+          listType = 'numbered';
+          listStartIndex = index;
+        }
+        currentList.push(numberedMatch[2]);
+        return;
+      }
+      
+      // Bullet points (•, *, -, -)
+      if (trimmed.match(/^[•\-*]\s+/)) {
+        if (listType !== 'bullet') {
+          flushList(index);
+          listType = 'bullet';
+          listStartIndex = index;
+        }
+        const bulletText = trimmed.replace(/^[•\-*]\s+/, '');
+        currentList.push(bulletText);
+        return;
+      }
+      
+      // Special formatting for key-value pairs (e.g., "Description: text")
+      const keyValueMatch = trimmed.match(/^([A-Z][A-Za-z\s]+):\s+(.+)/);
+      if (keyValueMatch && inNestedStructure) {
+        flushList(index);
+        const formatted = keyValueMatch[2]
+          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-900 dark:text-slate-100">$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-400">$1</em>');
+        
+        elements.push(
+          <div key={index} className="mb-2 pl-4">
+            <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">{keyValueMatch[1]}:</span>{' '}
+            <span className="text-sm text-slate-700 dark:text-slate-300" dangerouslySetInnerHTML={{ __html: formatted }} />
+          </div>
+        );
+        return;
+      }
+      
+      // Regular paragraphs
+      flushList(index);
+      const formatted = trimmed
+        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-900 dark:text-slate-100">$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em class="italic text-slate-700 dark:text-slate-300">$1</em>');
+      
+      const className = inNestedStructure 
+        ? "text-sm leading-relaxed text-slate-600 dark:text-slate-400 mb-2 pl-4"
+        : "text-sm leading-relaxed text-slate-700 dark:text-slate-300 mb-3";
+      
+      elements.push(
+        <p key={index} className={className}>
+          <span dangerouslySetInnerHTML={{ __html: formatted }} />
+        </p>
+      );
+    });
+    
+    flushList(lines.length);
+    return elements;
+  };
+
+  return (
+    <div className="relative">
+      {/* Subtle gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900/50 dark:via-slate-800/30 dark:to-slate-900/50 rounded-lg -z-10"></div>
+      
+      {/* Content with beautiful typography */}
+      <div className="relative px-6 py-5 space-y-1">
+        {formatContent(content)}
+      </div>
+      
+      {/* Bottom accent line */}
+      <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-700 to-transparent"></div>
+    </div>
+  );
+};
 
 export const ProfessionalLegalChat: React.FC<ProfessionalLegalChatProps> = ({
   analysisParts, isStreaming, isComplete, caseDescription, currentPartNumber
 }) => {
   const navigate = useNavigate();
   const [expandedParts, setExpandedParts] = useState<Set<number>>(new Set());
-  const [expandedThoughts, setExpandedThoughts] = useState<Set<number>>(new Set());
   const currentPartRef = useRef<HTMLDivElement>(null);
 
   // Auto-expand current part, auto-collapse completed ones
@@ -145,14 +337,6 @@ export const ProfessionalLegalChat: React.FC<ProfessionalLegalChatProps> = ({
 
   const togglePart = (partNumber: number) => {
     setExpandedParts(prev => {
-      const newSet = new Set(prev);
-      newSet.has(partNumber) ? newSet.delete(partNumber) : newSet.add(partNumber);
-      return newSet;
-    });
-  };
-
-  const toggleThoughts = (partNumber: number) => {
-    setExpandedThoughts(prev => {
       const newSet = new Set(prev);
       newSet.has(partNumber) ? newSet.delete(partNumber) : newSet.add(partNumber);
       return newSet;
@@ -225,46 +409,30 @@ export const ProfessionalLegalChat: React.FC<ProfessionalLegalChatProps> = ({
                 }`}
               >
                 <div className="px-4 pb-4 space-y-4">
-                  {/* Thoughts Section - Collapsible like Perplexity */}
+                  {/* Thoughts Section */}
                   {part.thoughts.length > 0 && (
-                    <Collapsible 
-                      open={expandedThoughts.has(part.partNumber)}
-                      onOpenChange={() => toggleThoughts(part.partNumber)}
-                    >
-                      <div className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-                        {/* Header - Clickable */}
-                        <CollapsibleTrigger className="w-full">
-                          <div className="bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-3.5 flex items-center justify-between hover:from-blue-600 hover:to-cyan-600 transition-all cursor-pointer">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
-                                <Brain size={20} className="text-white"/>
-                              </div>
-                              <h4 className="text-lg font-bold text-white">
-                                Internal Reasoning
-                              </h4>
-                            </div>
-                            <ChevronDown 
-                              className={`h-5 w-5 text-white transition-transform duration-300 ${
-                                expandedThoughts.has(part.partNumber) ? 'rotate-180' : ''
-                              }`} 
-                            />
-                          </div>
-                        </CollapsibleTrigger>
-                        
-                        {/* Collapsible Content */}
-                        <CollapsibleContent>
-                          <div className="p-5 space-y-3">
-                            {part.thoughts.map((thought, idx) => (
-                              <div key={idx} className="relative pl-4 border-l-2 border-blue-200 dark:border-blue-800">
-                                <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg">
-                                  {thought}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </CollapsibleContent>
+                    <div className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                      {/* Header */}
+                      <div className="bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-3.5 flex items-center gap-3">
+                        <div className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                          <Brain size={20} className="text-white"/>
+                        </div>
+                        <h4 className="text-lg font-bold text-white">
+                          Internal Reasoning
+                        </h4>
                       </div>
-                    </Collapsible>
+                      
+                      {/* Content */}
+                      <div className="p-5 space-y-3">
+                        {part.thoughts.map((thought, idx) => (
+                          <div key={idx} className="relative pl-4 border-l-2 border-blue-200 dark:border-blue-800">
+                            <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg">
+                              {thought}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
 
                   {/* Search Queries Section */}
@@ -308,10 +476,10 @@ export const ProfessionalLegalChat: React.FC<ProfessionalLegalChatProps> = ({
                           <ReferenceCasesDisplay content={part.deliverable as string} />
                         </div>
                       ) : (
-                        <div className="relative z-10 px-6 py-5">
-                          <MessageContent 
+                        <div className="relative z-10">
+                          <DeliverableContent 
                             content={part.deliverable as string} 
-                            showCopyButton={false}
+                            isStreaming={isCurrent}
                           />
                         </div>
                       )}

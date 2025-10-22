@@ -136,6 +136,11 @@ export const ReferenceCasesDisplay: React.FC<ReferenceCasesDisplayProps> = ({ co
                   </Button>
                 )}
               </div>
+              
+              {/* Badge number */}
+              <div className="absolute top-3 right-3 w-7 h-7 bg-gradient-to-br from-amber-500 to-orange-500 rounded-lg flex items-center justify-center shadow-md">
+                <span className="text-xs font-bold text-white">{index + 1}</span>
+              </div>
             </Card>
           ))}
         </div>

@@ -202,29 +202,25 @@ export const MessageContent: React.FC<MessageContentProps> = ({
       processed = processed.replace(`__CODE_BLOCK_${i}__`, block);
     });
 
-    // Handle paragraphs - only split on 2+ consecutive newlines
-    const paragraphs = processed.split(/\n{2,}/);
+    // Paragraphs - split by double newlines
+    const paragraphs = processed.split(/\n\s*\n/);
     processed = paragraphs
       .map((para) => {
-        const trimmed = para.trim();
-        if (!trimmed) return '';
-        
         // Don't wrap headings, lists, code blocks, or blockquotes in <p> tags
         if (
-          trimmed.startsWith('<h') ||
-          trimmed.startsWith('<ul') ||
-          trimmed.startsWith('<ol') ||
-          trimmed.startsWith('<pre') ||
-          trimmed.startsWith('<blockquote') ||
-          trimmed.startsWith('<hr')
+          para.trim().startsWith('<h') ||
+          para.trim().startsWith('<ul') ||
+          para.trim().startsWith('<ol') ||
+          para.trim().startsWith('<pre') ||
+          para.trim().startsWith('<blockquote') ||
+          para.trim().startsWith('<hr')
         ) {
-          return trimmed;
+          return para;
         }
-        // Replace single newlines with <br> only if they're not already part of HTML
-        const withBreaks = trimmed.replace(/\n/g, '<br>');
-        return `<p class="mb-4">${withBreaks}</p>`;
+        // Replace single newlines with <br>
+        const withBreaks = para.replace(/\n/g, '<br>');
+        return `<p class="mb-3">${withBreaks}</p>`;
       })
-      .filter(p => p)
       .join('');
 
     return processed;
