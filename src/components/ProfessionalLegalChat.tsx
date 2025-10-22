@@ -7,7 +7,7 @@ import type { AnalysisState } from '@/pages/Analyze';
 import { SwotMatrixData } from '@/lib/legalStreamAPI';
 import { useNavigate } from 'react-router-dom';
 import { ReferenceCasesDisplay } from '@/components/ReferenceCasesDisplay';
-import LegalDisclaimer from '@/components/LegalDisclaimer';
+import { LegalDisclaimer } from '@/components/LegalDisclaimer';
 
 interface ProfessionalLegalChatProps {
   analysisParts: AnalysisState[];

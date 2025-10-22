@@ -2,7 +2,7 @@
  * The base URL for your deployed FastAPI backend.
  * Ensure this points to your live Render service.
  */
-const API_BASE_URL = "https://legal-backend-api-chatbot.onrender.com";
+const API_BASE_URL = "http://localhost:8000"; // Replace with your actual backend URL
 
 /**
  * Defines the structured data format for the SWOT matrix,
@@ -16,23 +16,14 @@ export interface SwotMatrixData {
 }
 
 /**
- * Interface to hold the structured data for a single search result
- */
-export interface ToolResult { 
-  query: string;
-  content: string;
-}
-
-/**
  * Defines the callback functions that the streaming client uses to send
  * clean, parsed data back to the React components.
  */
 export interface StreamingCallbacks {
   onStart?: () => void;
   onConversationId?: (conversationId: string) => void;
-  onThinking?: (content: string) => void; // Used for [INTERNAL-REASONING]
-  onSearchQueries?: (query: string) => void; // Sends one query at a time
-  onToolResultChunk?: (query: string, content: string) => void; // NEW: For streaming search result content
+  onThinking?: (content: string) => void;
+  onSearchQueries?: (queries: string[]) => void;
   onDeliverable?: (content: string | SwotMatrixData) => void;
   onDirectivePart?: (partNumber: number) => void;
   onComplete?: () => void;
@@ -45,192 +36,262 @@ export interface StreamingCallbacks {
 export class LegalStreamingClient {
   private abortController: AbortController | null = null;
   private callbacks: StreamingCallbacks;
-  private currentPartNumber: number | null = null; 
+  // conversationId is only used internally for parsing, but relies on sessionStorage for chat
   private conversationId: string | null = null; 
-  
-  // Internal State Tracking for New Tags
-  private inThinking: boolean = false;
-  private  inDeliverable: boolean = false;
-  private inSearchQueriesList: boolean = false; 
-  private inToolResult: boolean = false;      
-  private currentToolQuery: string = '';       
+  private inThinking = false;
+  private inDeliverable = false;
+  private currentPartNumber = 0;
 
   constructor(callbacks: StreamingCallbacks) {
     this.callbacks = callbacks;
   }
 
-  public async streamDirective(file: File, caseDescription: string, firstInstruction: string) {
+  /**
+   * Initiates the legal analysis by sending the case facts (TEXT OR FILE) to the backend.
+   * @param input The detailed description of the legal case (string) OR the file to upload (File).
+   */
+  async startAnalysis(input: string | File) {
+    console.log('🚀 Starting analysis...');
+    this.close();
     this.abortController = new AbortController();
     this.callbacks.onStart?.();
 
+    const url = `${API_BASE_URL}/generate_directive`;
+    let body: FormData | string;
+    let headers: HeadersInit = {};
+    let method: string = 'POST';
+
+    // === LOGIC: Handle File Upload (Real or Virtual) ===
+    if (input instanceof File) {
+      console.log('📁 Sending file upload...');
+      const formData = new FormData();
+      formData.append('case_file', input); // Key must match FastAPI endpoint: case_file
+      body = formData;
+    } 
+    else {
+      console.log('⚠️ Text input mode is deprecated.');
+      this.callbacks.onError?.("The text input mode is temporarily unavailable. Please upload a file.");
+      return; 
+    }
+
     try {
-        const formData = new FormData();
-        formData.append("case_file", file);
-        formData.append("case_description", caseDescription);
-        formData.append("first_instruction", firstInstruction);
+      console.log('📡 Sending POST request...');
+      const response = await fetch(url, {
+        method: method,
+        headers: headers,
+        body: body,
+        signal: this.abortController.signal,
+      });
 
-        const response = await fetch(`${API_BASE_URL}/generate_directive`, {
-            method: 'POST',
-            body: formData,
-            signal: this.abortController.signal,
-        });
+      console.log('✅ Response received');
 
-        if (!response.ok || !response.body) {
-            this.callbacks.onError?.(`HTTP Error: ${response.statusText}`);
-            return;
-        }
-
-        const reader = response.body.getReader();
-        await this.processStream(reader);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ HTTP Error Response:', errorText);
+        throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
+      }
+      
+      if (!response.body) {
+        console.error('❌ No response body received');
+        throw new Error('No response body received from server');
+      }
+      
+      console.log('🎬 Starting to read stream...');
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      await this.processSSEStream(reader, decoder);
 
     } catch (error) {
-        if (this.abortController.signal.aborted) {
-            console.log('Stream aborted successfully.');
-        } else {
-            const errorMessage = error instanceof Error ? error.message : "An unknown network error occurred.";
-            this.callbacks.onError?.(errorMessage);
-        }
+      console.error('💥 Error in startAnalysis:', error);
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+      }
+      
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        this.callbacks.onError?.('Failed to connect to the analysis service.');
+      }
     }
   }
 
-  private async processStream(reader: ReadableStreamDefaultReader<Uint8Array>) {
-    const decoder = new TextDecoder("utf-8");
-    let buffer = '';
+  /**
+   * Sends a follow-up chat message using the active conversation ID.
+   * @param query The user's question.
+   */
+  async sendChatMessage(query: string) {
+    // FIX: Retrieve conversationId directly from sessionStorage for robustness
+    const storedId = sessionStorage.getItem('legal_conversation_id');
+    
+    if (!storedId) {
+      this.callbacks.onError?.("No active conversation ID found in session storage.");
+      return;
+    }
+    
+    this.callbacks.onStart?.();
+    const chatUrl = `${API_BASE_URL}/chat`;
 
+    try {
+        const response = await fetch(chatUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // FIX: Use the reliably fetched ID
+            body: JSON.stringify({ query: query, conversation_id: storedId }), 
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            this.callbacks.onError?.(`Chat error: ${response.status} - ${errorText}`);
+            return;
+        }
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            
+            // Process SSE events
+            const events = buffer.split('\n\n');
+            buffer = events.pop() || '';
+            
+            for (const event of events) {
+                if (event.startsWith('data:')) {
+                    const data = event.substring(5).trim();
+                    this.callbacks.onDeliverable?.(data); // Append chat response chunk
+                }
+            }
+        }
+        this.callbacks.onComplete?.();
+
+    } catch (error) {
+        this.callbacks.onError?.("Failed to send chat message.");
+    }
+  }
+
+  /**
+   * The core logic for parsing the raw SSE stream from the backend.
+   */
+  private async processSSEStream(reader: ReadableStreamDefaultReader<Uint8Array>, decoder: TextDecoder) {
+    let buffer = '';
+    let chunkCount = 0;
+    let totalBytes = 0;
+    
+    console.log('🔄 Processing SSE stream...');
+    
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
         
-        // Process line by line
-        let lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep the last, incomplete line in the buffer
-
+        if (done) {
+          console.log('✋ Stream ended');
+          break;
+        }
+        
+        chunkCount++;
+        totalBytes += value.length;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.substring(6).trim();
+          const trimmedLine = line.trim();
+          
+          if (!trimmedLine.startsWith('data:')) continue;
+          
+          const data = trimmedLine.substring(5).trim();
+          if (!data) continue;
 
-            // -----------------------------------------------------
-            // 1. BLOCK START TAGS (Set Flags)
-            // -----------------------------------------------------
-            if (data.includes('[INTERNAL-REASONING-BEGIN]')) { 
-              this.inThinking = true;
-              this.inDeliverable = this.inSearchQueriesList = this.inToolResult = false;
-              continue;
+          // --- Marker Processing Logic ---
+          if (data.includes('[CONVERSATION_ID]')) {
+            const idMatch = data.match(/\[CONVERSATION_ID\]\s*(\w+)/);
+            if (idMatch?.[1]) {
+              this.conversationId = idMatch[1];
+              this.callbacks.onConversationId?.(idMatch[1]);
             }
-            if (data.includes('[SEARCH_QUERIES-BEGIN]')) { 
-              this.inSearchQueriesList = true;
-              this.inThinking = this.inDeliverable = this.inToolResult = false;
-              continue;
-            }
-            if (data.includes('[DELIVERABLE-BEGIN]')) {
-              this.inDeliverable = true;
-              this.inThinking = this.inSearchQueriesList = this.inToolResult = false;
-              continue;
-            }
-            // Handle Tool Result Start (Captures the query after the tag)
-            const toolResultStartMatch = data.match(/\[TOOL-RESULT-BEGIN\]\s*(.*)/);
-            if (toolResultStartMatch) {
-              this.inToolResult = true;
-              this.currentToolQuery = toolResultStartMatch[1].trim();
-              this.inThinking = this.inDeliverable = this.inSearchQueriesList = false;
-              continue;
-            }
-            
-            // -----------------------------------------------------
-            // 2. BLOCK END TAGS (Unset Flags)
-            // -----------------------------------------------------
-            if (data.includes('[INTERNAL-REASONING-END]') || data.includes('[INTERNAL-REASONING: none]')) {
-              this.inThinking = false;
-              continue;
-            }
-            if (data.includes('[SEARCH_QUERIES-END]') || data.includes('[SEARCH_QUERIES: none]')) { 
-              this.inSearchQueriesList = false;
-              continue;
-            }
-            if (data.includes('[DELIVERABLE-END]') || data.includes('[DELIVERABLE: none]')) {
-              this.inDeliverable = false;
-              continue;
-            }
-            if (data.includes('[TOOL-RESULT-END]')) {
-              this.inToolResult = false; 
-              this.currentToolQuery = '';
-              continue;
-            }
-            if (data.includes('[WAR-GAME-DIRECTIVE-COMPLETE]')) {
-              this.callbacks.onComplete?.();
-              continue;
-            }
+            continue;
+          }
+          
+          if (data.includes('[WAR-GAME-DIRECTIVE-COMPLETE]')) {
+            this.callbacks.onComplete?.();
+            this.close();
+            return;
+          }
+          
+          if (data === '[THOUGHTS-BEGIN]') {
+            this.inThinking = true;
+            continue;
+          }
+          
+          if (data === '[THOUGHTS-END]' || data === '[THOUGHTS: none]') {
+            this.inThinking = false;
+            continue;
+          }
+          
+          if (data === '[DELIVERABLE-BEGIN]') {
+            this.inDeliverable = true;
+            continue;
+          }
+          
+          if (data === '[DELIVERABLE-END]' || data === '[DELIVERABLE: none]') {
+            this.inDeliverable = false;
+            continue;
+          }
+          
+          const partMatch = data.match(/^=== PART (\d+) ===/);
+          if (partMatch) {
+            this.currentPartNumber = parseInt(partMatch[1], 10);
+            this.callbacks.onDirectivePart?.(this.currentPartNumber);
+            continue;
+          }
+          
+          if (data === '[SEARCH_QUERIES]' || data === '[SEARCH_QUERIES: none]') {
+            continue;
+          }
 
-            // -----------------------------------------------------
-            // 3. META/CONTROL LOGIC
-            // -----------------------------------------------------
-            // Part Number Logic
-            const partMatch = data.match(/=== PART (\d+) ===/);
-            if (partMatch) {
-              this.currentPartNumber = parseInt(partMatch[1], 10);
-              this.callbacks.onDirectivePart?.(this.currentPartNumber);
-              this.inThinking = this.inDeliverable = this.inSearchQueriesList = this.inToolResult = false; // Reset all flags
-              continue;
-            }
-            // Conversation ID Logic
-            const idMatch = data.match(/\[CONVERSATION_ID\]\s*(.*)/);
-            if (idMatch) {
-              this.conversationId = idMatch[1].trim();
-              this.callbacks.onConversationId?.(this.conversationId);
-              continue;
-            }
-            
-            // -----------------------------------------------------
-            // 4. CONTENT DELIVERY LOGIC
-            // -----------------------------------------------------
-            
-            // Search Queries (lines starting with -)
-            if (this.inSearchQueriesList && data.startsWith('- ')) {
-              const query = data.replace(/^- [\"']?|[\"']?$/g, '').trim();
-              if (query && query !== 'none') {
-                this.callbacks.onSearchQueries?.(query); 
+          // Add logic to capture the summarized facts delivered by the backend
+          if (data.includes('[SUMMARIZED_FACTS_BEGIN]')) {
+              const summaryMatch = data.match(/\[SUMMARIZED_FACTS_BEGIN\]\s*(.+)/);
+              if (summaryMatch) {
+                  sessionStorage.setItem('legal_case_description', summaryMatch[1].trim());
               }
               continue;
+          }
+          
+          // Capture individual search query lines (start with - or are after [SEARCH_QUERIES])
+          if (data.startsWith('- "') || data.startsWith('- \'') || data.startsWith('- ')) {
+            const query = data.replace(/^- ["']?|["']?$/g, '').trim();
+            if (query && query !== 'none') {
+              this.callbacks.onSearchQueries?.([query]);
             }
-            
-            // Tool Result Content (Streaming links/sources content)
-            if (this.inToolResult) {
-              this.callbacks.onToolResultChunk?.(this.currentToolQuery, data);
-              continue;
-            }
-            
-            // Deliverable Content (Main Report)
-            if (this.inDeliverable) {
-              if (this.currentPartNumber === 5) {
-                try {
-                  const swotData: SwotMatrixData = JSON.parse(data);
-                  this.callbacks.onDeliverable?.(swotData);
-                } catch (e) {
-                  this.callbacks.onDeliverable?.(data);
-                }
-              } else {
+            continue;
+          }
+
+          // --- Content Delivery Logic ---
+          if (this.inDeliverable) {
+            if (this.currentPartNumber === 5) {
+              try {
+                const swotData: SwotMatrixData = JSON.parse(data);
+                this.callbacks.onDeliverable?.(swotData);
+              } catch (e) {
                 this.callbacks.onDeliverable?.(data);
               }
-              continue;
-            }
-            
-            // Thinking Content (Internal Reasoning)
-            if (this.inThinking) {
-              this.callbacks.onThinking?.(data);
-              continue;
-            }
-            
-            // General info/errors
-            if (data.startsWith('[INFO]')) {
-                console.log(data);
+            } else {
+              this.callbacks.onDeliverable?.(data);
             }
           }
+          
+          if (this.inThinking) {
+            this.callbacks.onThinking?.(data);
+          }
         }
+      }
       
-    } 
     } catch (error) {
       this.callbacks.onError?.("An error occurred while processing the stream.");
     } finally {
@@ -242,8 +303,10 @@ export class LegalStreamingClient {
    * Closes the active network connection.
    */
   public close() {
+    console.log('🛑 Closing stream connection');
     if (this.abortController) {
       this.abortController.abort();
+      this.abortController = null;
     }
   }
 }
