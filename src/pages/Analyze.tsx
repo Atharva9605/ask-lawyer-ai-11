@@ -148,10 +148,10 @@ const Analyze = () => {
         }
       },
 
-      onSearchQueries: (queries: string[]) => {
+      onSearchQueries: (query: string) => {
         const part = partsMap.get(activePartNumber);
         if (part) {
-          part.searchQueries.push(...queries);
+          part.searchQueries.push(query);
           scheduleUpdate();
         }
       },
@@ -216,8 +216,8 @@ const Analyze = () => {
     const virtualFile = new File([textBlob], "case_description.txt", { type: 'text/plain' });
     
     try {
-      // Pass the virtual File object to the startAnalysis method
-      await client.startAnalysis(virtualFile); 
+      // Pass the virtual File object to the streamDirective method
+      await client.streamDirective(virtualFile, caseDescription, "Generate a comprehensive legal analysis");
 
     } catch (err) {
       console.error('Failed to start analysis:', err);

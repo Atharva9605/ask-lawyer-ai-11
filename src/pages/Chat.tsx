@@ -148,7 +148,10 @@ const Chat = () => {
         setCurrentResponse('');
 
         try {
-            await streamingClient.sendChatMessage(trimmedInput);
+            // Create a temporary text file for the chat message
+            const messageBlob = new Blob([trimmedInput], { type: 'text/plain' });
+            const messageFile = new File([messageBlob], "chat_message.txt", { type: 'text/plain' });
+            await streamingClient.streamDirective(messageFile, trimmedInput, "Continue the conversation");
         } catch (error) {
             handleError(error instanceof Error ? error.message : "Failed to send message");
         }

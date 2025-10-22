@@ -139,10 +139,10 @@ const UploadDocument = () => {
           scheduleUpdate();
         }
       },
-      onSearchQueries: (queries: string[]) => {
+      onSearchQueries: (query: string) => {
         const part = partsMap.get(activePartNumber);
         if (part) {
-          part.searchQueries.push(...queries);
+          part.searchQueries.push(query);
           scheduleUpdate();
         }
       },
@@ -200,7 +200,7 @@ const UploadDocument = () => {
     setStreamingClient(client);
 
     try {
-      await client.startAnalysis(caseFile);
+      await client.streamDirective(caseFile, "Uploaded legal document", "Generate a comprehensive legal directive");
     } catch {
       setError('Failed to connect to analysis service');
       setLoading(false);
