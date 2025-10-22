@@ -57,3 +57,4 @@ export const LegalDisclaimer: React.FC = () => {
     </Card>
   );
 };
+export default LegalDisclaimer;
