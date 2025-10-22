@@ -118,7 +118,7 @@ const UploadDocument = () => {
       updateTimer = setTimeout(() => {
         const sortedParts = Array.from(partsMap.values()).sort((a, b) => a.partNumber - b.partNumber);
         setAnalysisParts(sortedParts);
-      }, 100);
+      }, 16); // ~60fps for smooth real-time streaming
     };
 
     const client = new LegalStreamingClient({
