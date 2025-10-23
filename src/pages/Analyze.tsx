@@ -2,32 +2,36 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, RotateCcw, FileText, Clock } from 'lucide-react';
+import { ArrowLeft, RotateCcw, FileText, Clock, Download } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LegalStreamingClient, SwotMatrixData } from '@/lib/legalStreamAPI';
 import { ProfessionalLegalChat } from '@/components/ProfessionalLegalChat';
 import SegmentedProgress from '@/components/SegmentedProgress';
+import { EnhancedLegalReferences } from "@/components/EnhancedLegalReferences";
 
 export interface AnalysisState {
   partNumber: number;
-  thoughts: string[];
+  internalReasoning: string[];
   searchQueries: string[];
+  toolResults: Array<{ query: string; content: string }>;
   deliverable: string | SwotMatrixData;
 }
 
-/**
- * Parse SWOT matrix from plain text format
- */
+// Note: Update ProfessionalLegalChat.tsx interface to match:
+// - Replace 'thoughts' with 'internalReasoning'
+// - Add 'toolResults' field
+
 const parseSwotFromText = (text: string): SwotMatrixData | null => {
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
   const swot: Partial<SwotMatrixData> = {};
 
-  let currentSection: 'strength' | 'weakness' | 'opportunity' | 'threat' | null = null;
-  let currentContent: string[] = [];
+  let currentSection: keyof SwotMatrixData | null = null;
 
+  let currentContent: string[] = [];
   const saveSection = () => {
     if (currentSection && currentContent.length > 0) {
-      swot[currentSection] = currentContent.join(' ').trim();
+      // Preserve as an array of trimmed non-empty strings to match SwotMatrixData
+      swot[currentSection] = currentContent.map(s => s.trim()).filter(Boolean);
       currentContent = [];
     }
   };
@@ -63,11 +67,9 @@ const parseSwotFromText = (text: string): SwotMatrixData | null => {
   saveSection();
 
   if (swot.strength && swot.weakness && swot.opportunity && swot.threat) {
-    console.log('✅ SWOT parsed successfully:', swot);
     return swot as SwotMatrixData;
   }
 
-  console.warn('⚠️ SWOT parsing incomplete:', swot);
   return null;
 };
 
@@ -85,9 +87,22 @@ const Analyze = () => {
   const [hasStarted, setHasStarted] = useState(false);
 
   useEffect(() => {
-    // Clear any previous error on mount, but keep old analysis for view
     setError(null);
-    return () => streamingClient?.close();
+    return () => {
+      // Safely attempt to clean up the streaming client using whatever teardown method exists.
+      const client: any = streamingClient;
+      if (!client) return;
+
+      if (typeof client.close === 'function') {
+        client.close();
+      } else if (typeof client.disconnect === 'function') {
+        client.disconnect();
+      } else if (typeof client.stop === 'function') {
+        client.stop();
+      } else if (typeof client.terminate === 'function') {
+        client.terminate();
+      }
+    };
   }, [streamingClient]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,7 +117,18 @@ const Analyze = () => {
     setCurrentPartNumber(0);
     setLastSubmittedDescription(caseDescription);
     sessionStorage.removeItem('legal_case_description');
-    streamingClient?.close();
+    if (streamingClient) {
+      const client: any = streamingClient;
+      if (typeof client.close === 'function') {
+        client.close();
+      } else if (typeof client.disconnect === 'function') {
+        client.disconnect();
+      } else if (typeof client.stop === 'function') {
+        client.stop();
+      } else if (typeof client.terminate === 'function') {
+        client.terminate();
+      }
+    }
 
     const partsMap = new Map<number, AnalysisState>();
     let updateTimer: ReturnType<typeof setTimeout> | null = null;
@@ -116,7 +142,8 @@ const Analyze = () => {
       }, 100);
     };
 
-    const client = new LegalStreamingClient({
+    const client = new (LegalStreamingClient as any)({
+      baseURL: 'https://legal-backend-api-chatbot.onrender.com',
       onStart: () => {
         console.log('Analysis started');
         setHasStarted(true);
@@ -132,18 +159,19 @@ const Analyze = () => {
         if (!partsMap.has(partNumber)) {
           partsMap.set(partNumber, {
             partNumber,
-            thoughts: [],
+            internalReasoning: [],
             searchQueries: [],
+            toolResults: [],
             deliverable: '',
           });
         }
         scheduleUpdate();
       },
 
-      onThinking: (content: string) => {
+      onInternalReasoning: (content: string) => {
         const part = partsMap.get(activePartNumber);
         if (part) {
-          part.thoughts.push(content);
+          part.internalReasoning.push(content);
           scheduleUpdate();
         }
       },
@@ -156,17 +184,48 @@ const Analyze = () => {
         }
       },
 
-      onDeliverable: (content: string | SwotMatrixData) => {
+      onToolResult: (query: string, content: string) => {
         const part = partsMap.get(activePartNumber);
         if (part) {
-          if (typeof content === 'object') {
-            part.deliverable = content;
-          } else {
-            part.deliverable =
-              (typeof part.deliverable === 'string' ? part.deliverable : '') + content + '\n';
+          // Find existing result or create new one
+          let result = part.toolResults.find(r => r.query === query);
+          if (!result) {
+            result = { query, content: '' };
+            part.toolResults.push(result);
           }
+          result.content += content + '\n';
           scheduleUpdate();
         }
+      },
+
+      onDeliverable: (content: string | SwotMatrixData) => {
+        // Use functional state update to ensure new object + array references
+        setAnalysisParts((prevParts) => {
+          if (prevParts.length === 0) return prevParts;
+
+          // Find index for the active part (fall back to last element if not found)
+          const idx = prevParts.findIndex(p => p.partNumber === activePartNumber);
+          if (idx === -1) return prevParts;
+
+          const newParts = [...prevParts]; // new array reference
+          const currentPart = { ...newParts[idx] }; // new object reference
+
+          if (typeof content === 'object') {
+            currentPart.deliverable = content;
+          } else {
+            currentPart.deliverable =
+              (typeof currentPart.deliverable === 'string' ? currentPart.deliverable : '') + content + '\n';
+          }
+
+          newParts[idx] = currentPart;
+
+          // Keep partsMap in sync for other callbacks that rely on it
+          partsMap.set(activePartNumber, currentPart);
+
+          return newParts;
+        });
+        // Also schedule any batched UI updates if needed
+        scheduleUpdate();
       },
 
       onComplete: () => {
@@ -186,8 +245,6 @@ const Analyze = () => {
         setLoading(false);
         setCurrentPartNumber(0);
         
-        // Save the original text description to sessionStorage for chat context
-        // NOTE: The backend will override this with the summarized facts via [SUMMARIZED_FACTS_BEGIN]
         sessionStorage.setItem('legal_case_description', lastSubmittedDescription);
 
         toast({
@@ -211,19 +268,51 @@ const Analyze = () => {
 
     setStreamingClient(client);
 
-    // --- FIX: Convert text input to a virtual File/Blob for the file-upload endpoint ---
     const textBlob = new Blob([caseDescription], { type: 'text/plain' });
     const virtualFile = new File([textBlob], "case_description.txt", { type: 'text/plain' });
     
     try {
-      // Pass the virtual File object to the startAnalysis method
-      await client.startAnalysis(virtualFile); 
-
+      await client.startAnalysis(virtualFile);
     } catch (err) {
       console.error('Failed to start analysis:', err);
       setError('Failed to connect to analysis service');
       setLoading(false);
       setHasStarted(false);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!streamingClient) {
+      toast({
+        title: 'Error',
+        description: 'Unable to download PDF. Please try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const downloadFn = (streamingClient as any)?.downloadDirectivePDF;
+    if (typeof downloadFn === 'function') {
+      try {
+        downloadFn.call(streamingClient);
+        toast({
+          title: 'PDF Download Started',
+          description: 'Your directive PDF is being downloaded.',
+        });
+      } catch (err) {
+        console.error('Failed to start PDF download', err);
+        toast({
+          title: 'Error',
+          description: 'Failed to start PDF download.',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      toast({
+        title: 'Not Supported',
+        description: 'PDF download is not supported by the current client.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -239,9 +328,21 @@ const Analyze = () => {
           </Link>
           <Link to="/upload"> 
             <Button variant="outline" size="sm">
-                Switch to File Upload
+              Switch to File Upload
             </Button>
           </Link>
+          
+          {analysisComplete && (
+            <Button 
+              onClick={handleDownloadPDF} 
+              variant="default" 
+              size="sm"
+              className="ml-auto"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download PDF Report
+            </Button>
+          )}
         </div>
 
         <div className="max-w-4xl mx-auto">
