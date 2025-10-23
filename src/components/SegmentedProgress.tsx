@@ -24,7 +24,6 @@ const SegmentedProgress: React.FC<SegmentedProgressProps> = ({
     'Leverage Points',
     'Execution Roadmap',
     'Final Briefing',
-    'Reference Cases',
     'Disclaimer'
   ];
 
