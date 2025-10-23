@@ -1,6 +1,6 @@
 // UploadDocument.tsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -107,10 +107,18 @@ const UploadDocument = () => {
     }
   };
   
-  const handleChunk = (chunk: string) => {
-    // Placeholder for actual parsing logic
-    console.log("Chunk received:", chunk);
-  };
+  // Streaming state management (similar to Analyze.tsx)
+  const partsMapRef = React.useRef(new Map<number, LocalAnalysisState>());
+  const updateTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activePartNumberRef = React.useRef(0);
+
+  const scheduleUpdate = React.useCallback(() => {
+    if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
+    updateTimerRef.current = setTimeout(() => {
+      const sortedParts = Array.from(partsMapRef.current.values()).sort((a, b) => a.partNumber - b.partNumber);
+      setAnalysisParts(sortedParts);
+    }, 16); // 16ms for smooth 60fps updates
+  }, []);
   
   const handleComplete = (success: boolean) => {
     setLoading(false);
@@ -150,24 +158,130 @@ const UploadDocument = () => {
     setAnalysisParts([]);
     setCurrentPartNumber(0);
     setAnalysisComplete(false);
-    setLastSubmittedDescription(chatCaseDescription); // Save for display
+    setLastSubmittedDescription(chatCaseDescription);
+    
+    // Clear refs
+    partsMapRef.current.clear();
+    activePartNumberRef.current = 0;
+
+    // Create client with callbacks
+    const client = new (LegalStreamingClient as any)({
+      baseURL: 'https://legal-backend-api-chatbot.onrender.com',
+      
+      onStart: () => {
+        console.log('Analysis started');
+        setHasStarted(true);
+      },
+
+      onConversationId: (id: string) => {
+        setConversationId(id);
+        sessionStorage.setItem('legal_conversation_id', id);
+      },
+
+      onDirectivePart: (partNumber: number) => {
+        activePartNumberRef.current = partNumber;
+        setCurrentPartNumber(partNumber);
+        if (!partsMapRef.current.has(partNumber)) {
+          partsMapRef.current.set(partNumber, {
+            partNumber,
+            internalReasoning: [],
+            searchQueries: [],
+            toolResults: [],
+            deliverable: '',
+            thoughts: [],
+            references: [],
+            linkSummaries: []
+          });
+        }
+        scheduleUpdate();
+      },
+
+      onInternalReasoning: (content: string) => {
+        const part = partsMapRef.current.get(activePartNumberRef.current);
+        if (part) {
+          part.internalReasoning.push(content);
+          scheduleUpdate();
+        }
+      },
+
+      onSearchQueries: (queries: string[]) => {
+        const part = partsMapRef.current.get(activePartNumberRef.current);
+        if (part) {
+          part.searchQueries.push(...queries);
+          scheduleUpdate();
+        }
+      },
+
+      onToolResult: (query: string, content: string) => {
+        const part = partsMapRef.current.get(activePartNumberRef.current);
+        if (part) {
+          let result = part.toolResults.find(r => r.query === query);
+          if (!result) {
+            result = { query, content: '' };
+            part.toolResults.push(result);
+          }
+          result.content += content + '\n';
+          scheduleUpdate();
+        }
+      },
+
+      onDeliverable: (content: string) => {
+        const part = partsMapRef.current.get(activePartNumberRef.current);
+        if (part) {
+          if (typeof content === 'string') {
+            part.deliverable = (typeof part.deliverable === 'string' ? part.deliverable : '') + content;
+          } else {
+            part.deliverable = content;
+          }
+          scheduleUpdate();
+        }
+      },
+
+      onComplete: () => {
+        if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
+        
+        // Parse SWOT if it's part 5
+        const part5 = partsMapRef.current.get(5);
+        if (part5 && typeof part5.deliverable === 'string') {
+          const swotData = localParseSwotFromText(part5.deliverable);
+          if (swotData) {
+            part5.deliverable = swotData;
+          }
+        }
+
+        const sortedParts = Array.from(partsMapRef.current.values()).sort((a, b) => a.partNumber - b.partNumber);
+        setAnalysisParts(sortedParts);
+        setAnalysisComplete(true);
+        setLoading(false);
+        setCurrentPartNumber(0);
+
+        toast({
+          title: 'Analysis Complete',
+          description: 'The full legal directive is now available.',
+        });
+      },
+
+      onError: (errorMsg: string) => {
+        console.error('Analysis error:', errorMsg);
+        setError(errorMsg);
+        setLoading(false);
+        setHasStarted(false);
+        toast({
+          title: 'Analysis Failed',
+          variant: 'destructive',
+          description: errorMsg,
+        });
+      },
+    });
+
+    setStreamingClient(client);
 
     try {
-      const client = streamingClient || new LegalStreamingClient('https://legal-backend-api-chatbot.onrender.com');
-      setStreamingClient(client);
-
-      // LINE 232 (Approximate location of the original failing call)
-      // 2. API Call with all required parameters (The FIX)
-      const newConversationId = await client.startAnalysis(
+      await client.startAnalysis(
         caseFile,
-        chatCaseDescription, // <-- REQUIRED FIELD
-        initialInstruction,  // <-- REQUIRED FIELD
-        handleChunk,
-        handleComplete,
-        handleError
+        chatCaseDescription,
+        initialInstruction
       );
-      setConversationId(newConversationId);
-
     } catch (e) {
       setLoading(false);
       setHasStarted(false); 
