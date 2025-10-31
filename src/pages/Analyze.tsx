@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -68,6 +68,20 @@ const Analyze = () => {
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [client, setClient] = useState<LegalStreamingClient | null>(null);
 
+  // Use refs to avoid stale closures
+  const partsMapRef = useRef<Map<number, AnalysisState>>(new Map());
+  const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const activePartNumberRef = useRef<number>(0);
+
+  const scheduleUpdate = useCallback(() => {
+    if (updateTimerRef.current) return;
+    updateTimerRef.current = setTimeout(() => {
+      const parts = Array.from(partsMapRef.current.values()).sort((a, b) => a.partNumber - b.partNumber);
+      setAnalysisParts(parts);
+      updateTimerRef.current = null;
+    }, 100);
+  }, []);
+
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!caseDescription.trim()) {
@@ -81,39 +95,72 @@ const Analyze = () => {
 
     setLoading(true);
     setError(null);
+    partsMapRef.current.clear();
     setAnalysisParts([]);
     setCurrentPart(0);
     setAnalysisComplete(false);
+    activePartNumberRef.current = 0;
 
     const newClient = new LegalStreamingClient({
-      onStart: () => console.log('Streaming started...'),
-      onDirectivePart: (partNumber) => setCurrentPart(partNumber),
-      onDeliverable: (chunk) => {
-        setAnalysisParts(prev => {
-          const updated = [...prev];
-          let last = updated[updated.length - 1];
-          if (!last || last.partNumber !== currentPart) {
-            last = {
-              partNumber: currentPart,
-              internalReasoning: [],
-              searchQueries: [],
-              toolResults: [],
-              deliverable: '',
-            };
-            updated.push(last);
-          }
-          last.deliverable += chunk;
-          updated[updated.length - 1] = last;
-          return updated;
-        });
+      onStart: () => {
+        console.log('Streaming started...');
       },
-      onComplete: () => {
+      onDirectivePart: (partNumber) => {
+        console.log('Part:', partNumber);
+        activePartNumberRef.current = partNumber;
+        setCurrentPart(partNumber);
+        
+        if (!partsMapRef.current.has(partNumber)) {
+          partsMapRef.current.set(partNumber, {
+            partNumber,
+            internalReasoning: [],
+            searchQueries: [],
+            toolResults: [],
+            deliverable: '',
+          });
+        }
+      },
+      onInternalReasoning: (content) => {
+        const part = partsMapRef.current.get(activePartNumberRef.current);
+        if (part) {
+          part.internalReasoning.push(content);
+          scheduleUpdate();
+        }
+      },
+      onSearchQueries: (queries) => {
+        const part = partsMapRef.current.get(activePartNumberRef.current);
+        if (part) {
+          part.searchQueries.push(...queries);
+          scheduleUpdate();
+        }
+      },
+      onToolResult: (query, content) => {
+        const part = partsMapRef.current.get(activePartNumberRef.current);
+        if (part) {
+          part.toolResults.push({ query, content });
+          scheduleUpdate();
+        }
+      },
+      onDeliverable: (chunk) => {
+        const part = partsMapRef.current.get(activePartNumberRef.current);
+        if (part) {
+          if (typeof part.deliverable === 'string') {
+            part.deliverable += chunk;
+          } else {
+            part.deliverable = chunk;
+          }
+          scheduleUpdate();
+        }
+      },
+      onComplete: (success) => {
         setLoading(false);
-        setAnalysisComplete(true);
-        toast({
-          title: "Analysis Complete",
-          description: "All parts of the analysis have been generated successfully.",
-        });
+        setAnalysisComplete(success);
+        if (success) {
+          toast({
+            title: "Analysis Complete",
+            description: "All parts of the analysis have been generated successfully.",
+          });
+        }
       },
       onError: (msg) => {
         setLoading(false);
