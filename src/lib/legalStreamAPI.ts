@@ -61,88 +61,83 @@ export class LegalStreamingClient {
     const url = `${this.baseURL}/generate_directive`;
     const formData = new FormData();
 
-    // Use provided text fields only if available (no strict client-side validation here;
-    // callers that require validation should validate before calling)
-    if (typeof caseDescription === 'string' && caseDescription.trim()) {
-      formData.append("case_description", caseDescription.trim());
-    }
-    if (typeof firstInstruction === 'string' && firstInstruction.trim()) {
-      formData.append("first_instruction", firstInstruction.trim());
-    }
-
+    // Ensure both fields are included in the request
+    formData.append("case_description", caseDescription || '');
+    formData.append("first_instruction", firstInstruction || '');
     if (file) {
       formData.append("case_file", file);
     }
-    
-    let conversationId = 'temp-id'; 
-    let hasReturnedConversationId = false;
-
-    // Determine handlers: prefer per-call, otherwise fall back to constructor-provided options
-    const chunkHandler = onChunk ?? this.options?.onDeliverable ?? (() => {});
-    const completeHandler = onComplete ?? this.options?.onComplete ?? (() => {});
-    const errorHandler = onError ?? this.options?.onError ?? (() => {});
-    const conversationIdHandler = this.options?.onConversationId;
 
     try {
       this.options?.onStart?.();
+      console.log('Making request to:', url); // Debug log
 
       const response = await fetch(url, {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok || !response.body) {
+      if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No readable stream available');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
+        if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
+        // Decode and handle partial chunks
+        buffer += decoder.decode(value, { stream: true });
         
-        // SSE / stream parsing logic
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-            if (line.startsWith('data: ')) {
-                const data = line.substring(6);
+        // Process complete lines
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
 
-                // Extract Conversation ID and notify constructor callback if present
-                if (!hasReturnedConversationId) {
-                    const idMatch = data.match(/\[ID:\s*([^\]]+)\]/);
-                    if (idMatch) {
-                        conversationId = idMatch[1].trim();
-                        this.currentConversationId = conversationId;
-                        hasReturnedConversationId = true;
-                        conversationIdHandler?.(conversationId);
-                    }
-                }
-                
-                // deliver streamed chunk to handler
-                try {
-                  chunkHandler(data);
-                } catch (_) {
-                  // swallow handler errors to keep stream alive
-                }
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.substring(6).trim();
+            console.log('Received data:', data); // Debug log
+            
+            // Handle conversation ID
+            if (data.includes('[ID:')) {
+              const idMatch = data.match(/\[ID:\s*([^\]]+)\]/);
+              if (idMatch) {
+                this.currentConversationId = idMatch[1].trim();
+                this.options?.onConversationId?.(this.currentConversationId);
+                continue;
+              }
             }
+
+            // Handle part number
+            const partMatch = data.match(/\[PART\s*(\d+)\]/i);
+            if (partMatch) {
+              const partNumber = parseInt(partMatch[1], 10);
+              this.options?.onDirectivePart?.(partNumber);
+              continue;
+            }
+
+            // Send the content to the callback
+            this.options?.onDeliverable?.(data);
+          }
         }
       }
 
-      completeHandler(true);
-      return conversationId;
+      this.options?.onComplete?.(true);
+      return this.currentConversationId || 'unknown';
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("💥 Error in startAnalysis:", errorMessage); 
-      errorHandler(errorMessage);
-      completeHandler(false);
-      throw error; 
+      console.error("StreamingClient Error:", errorMessage);
+      this.options?.onError?.(errorMessage);
+      throw error;
     }
   }
 
