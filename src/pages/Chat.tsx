@@ -106,7 +106,6 @@ const Chat = () => {
         setConversationId(storedConversationId);
         
         const client = new LegalStreamingClient({
-            baseURL: 'https://legal-backend-api-chatbot.onrender.com',
             onDeliverable: handleDeliverable,
             onComplete: handleComplete,
             onError: handleError

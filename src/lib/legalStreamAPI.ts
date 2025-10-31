@@ -1,157 +1,312 @@
-import { AnalysisState } from '@/pages/Analyze'; // Assuming this import exists
+/**
+ * The base URL for your deployed FastAPI backend.
+ * Ensure this points to your live Render service.
+ */
+const API_BASE_URL = "http://localhost:8000"; // Replace with your actual backend URL
 
-// Define the shape of the SWOT matrix data for Part 5 (Assuming these types exist)
+/**
+ * Defines the structured data format for the SWOT matrix,
+ * which the backend sends for Part 5 of the analysis.
+ */
 export interface SwotMatrixData {
-  strength: string[];
-  weakness: string[];
-  opportunity: string[];
-  threat: string[];
+  strength: string;
+  weakness: string;
+  opportunity: string;
+  threat: string;
 }
 
-export interface LinkSummary {
-  url: string;
-  title: string;
-  status: 'success' | 'failure';
-  summary: string;
-}
-
-// New: options accepted by the client constructor
-export interface LegalStreamingClientOptions {
-  baseURL?: string;
+/**
+ * Defines the callback functions that the streaming client uses to send
+ * clean, parsed data back to the React components.
+ */
+export interface StreamingCallbacks {
   onStart?: () => void;
-  onConversationId?: (id: string) => void;
-  onDirectivePart?: (partNumber: number) => void;
-  onInternalReasoning?: (content: string) => void;
+  onConversationId?: (conversationId: string) => void;
+  onThinking?: (content: string) => void;
   onSearchQueries?: (queries: string[]) => void;
-  onToolResult?: (query: string, content: string) => void;
-  onDeliverable?: (content: string) => void; // used for streamed chunks
-  onComplete?: (success: boolean) => void;
+  onDeliverable?: (content: string | SwotMatrixData) => void;
+  onDirectivePart?: (partNumber: number) => void;
+  onComplete?: () => void;
   onError?: (error: string) => void;
 }
 
-const DEFAULT_BASE_URL = 'https://legal-backend-api-chatbot.onrender.com';
-
+/**
+ * The main client for handling SSE communication with the legal AI backend.
+ */
 export class LegalStreamingClient {
-  private baseURL: string;
-  private options?: LegalStreamingClientOptions;
-  private currentConversationId: string | null = null;
+  private abortController: AbortController | null = null;
+  private callbacks: StreamingCallbacks;
+  // conversationId is only used internally for parsing, but relies on sessionStorage for chat
+  private conversationId: string | null = null; 
+  private inThinking = false;
+  private inDeliverable = false;
+  private currentPartNumber = 0;
 
-  // Accept either a base URL string or an options object (which may include baseURL)
-  constructor(baseURLOrOptions: string | LegalStreamingClientOptions = DEFAULT_BASE_URL) {
-    if (typeof baseURLOrOptions === 'string') {
-      this.baseURL = baseURLOrOptions || DEFAULT_BASE_URL;
-    } else {
-      this.options = baseURLOrOptions;
-      this.baseURL = baseURLOrOptions.baseURL ?? DEFAULT_BASE_URL;
-    }
+  constructor(callbacks: StreamingCallbacks) {
+    this.callbacks = callbacks;
   }
-  
-  // ... (other methods, e.g., chat) ...
 
-  // startAnalysis now accepts optional text params and optional callbacks.
-  // If callbacks are not provided per-call, constructor options are used.
-  public async startAnalysis(
-    file: File | null,
-    caseDescription?: string,
-    firstInstruction?: string,
-    onChunk?: (chunk: string) => void,
-    onComplete?: (success: boolean) => void,
-    onError?: (error: string) => void
-  ): Promise<string> {
-    const url = `${this.baseURL}/generate_directive`;
-    const formData = new FormData();
+  /**
+   * Initiates the legal analysis by sending the case facts (TEXT OR FILE) to the backend.
+   * @param input The detailed description of the legal case (string) OR the file to upload (File).
+   */
+  async startAnalysis(input: string | File) {
+    console.log('🚀 Starting analysis...');
+    this.close();
+    this.abortController = new AbortController();
+    this.callbacks.onStart?.();
 
-    // Ensure both fields are included in the request
-    formData.append("case_description", caseDescription || '');
-    formData.append("first_instruction", firstInstruction || '');
-    if (file) {
-      formData.append("case_file", file);
+    const url = `${API_BASE_URL}/generate_directive`;
+    let body: FormData | string;
+    let headers: HeadersInit = {};
+    let method: string = 'POST';
+
+    // === LOGIC: Handle File Upload (Real or Virtual) ===
+    if (input instanceof File) {
+      console.log('📁 Sending file upload...');
+      const formData = new FormData();
+      formData.append('case_file', input); // Key must match FastAPI endpoint: case_file
+      body = formData;
+    } 
+    else {
+      console.log('⚠️ Text input mode is deprecated.');
+      this.callbacks.onError?.("The text input mode is temporarily unavailable. Please upload a file.");
+      return; 
     }
 
     try {
-      this.options?.onStart?.();
-      console.log('Making request to:', url); // Debug log
-
+      console.log('📡 Sending POST request...');
       const response = await fetch(url, {
-        method: 'POST',
-        body: formData,
+        method: method,
+        headers: headers,
+        body: body,
+        signal: this.abortController.signal,
       });
+
+      console.log('✅ Response received');
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('❌ HTTP Error Response:', errorText);
         throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
       }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No readable stream available');
+      
+      if (!response.body) {
+        console.error('❌ No response body received');
+        throw new Error('No response body received from server');
       }
-
+      
+      console.log('🎬 Starting to read stream...');
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        // Decode and handle partial chunks
-        buffer += decoder.decode(value, { stream: true });
-        
-        // Process complete lines
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.substring(6).trim();
-            console.log('Received data:', data); // Debug log
-            
-            // Handle conversation ID
-            if (data.includes('[ID:')) {
-              const idMatch = data.match(/\[ID:\s*([^\]]+)\]/);
-              if (idMatch) {
-                this.currentConversationId = idMatch[1].trim();
-                this.options?.onConversationId?.(this.currentConversationId);
-                continue;
-              }
-            }
-
-            // Handle part number
-            const partMatch = data.match(/\[PART\s*(\d+)\]/i);
-            if (partMatch) {
-              const partNumber = parseInt(partMatch[1], 10);
-              this.options?.onDirectivePart?.(partNumber);
-              continue;
-            }
-
-            // Send the content to the callback
-            this.options?.onDeliverable?.(data);
-          }
-        }
-      }
-
-      this.options?.onComplete?.(true);
-      return this.currentConversationId || 'unknown';
+      await this.processSSEStream(reader, decoder);
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("StreamingClient Error:", errorMessage);
-      this.options?.onError?.(errorMessage);
-      throw error;
+      console.error('💥 Error in startAnalysis:', error);
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+      }
+      
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        this.callbacks.onError?.('Failed to connect to the analysis service.');
+      }
     }
   }
 
-  // Minimal close() stub so callers can call it safely.
-  public close() {
-    // Implement actual teardown if using WebSocket/SSE connections.
-    return;
+  /**
+   * Sends a follow-up chat message using the active conversation ID.
+   * @param query The user's question.
+   */
+  async sendChatMessage(query: string) {
+    // FIX: Retrieve conversationId directly from sessionStorage for robustness
+    const storedId = sessionStorage.getItem('legal_conversation_id');
+    
+    if (!storedId) {
+      this.callbacks.onError?.("No active conversation ID found in session storage.");
+      return;
+    }
+    
+    this.callbacks.onStart?.();
+    const chatUrl = `${API_BASE_URL}/chat`;
+
+    try {
+        const response = await fetch(chatUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // FIX: Use the reliably fetched ID
+            body: JSON.stringify({ query: query, conversation_id: storedId }), 
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            this.callbacks.onError?.(`Chat error: ${response.status} - ${errorText}`);
+            return;
+        }
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            
+            // Process SSE events
+            const events = buffer.split('\n\n');
+            buffer = events.pop() || '';
+            
+            for (const event of events) {
+                if (event.startsWith('data:')) {
+                    const data = event.substring(5).trim();
+                    this.callbacks.onDeliverable?.(data); // Append chat response chunk
+                }
+            }
+        }
+        this.callbacks.onComplete?.();
+
+    } catch (error) {
+        this.callbacks.onError?.("Failed to send chat message.");
+    }
   }
 
-  // Lightweight placeholder for chat send message - implement as needed.
-  public async sendChatMessage(_message: string) {
-    throw new Error("sendChatMessage is not implemented on this client yet.");
+  /**
+   * The core logic for parsing the raw SSE stream from the backend.
+   */
+  private async processSSEStream(reader: ReadableStreamDefaultReader<Uint8Array>, decoder: TextDecoder) {
+    let buffer = '';
+    let chunkCount = 0;
+    let totalBytes = 0;
+    
+    console.log('🔄 Processing SSE stream...');
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log('✋ Stream ended');
+          break;
+        }
+        
+        chunkCount++;
+        totalBytes += value.length;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          
+          if (!trimmedLine.startsWith('data:')) continue;
+          
+          const data = trimmedLine.substring(5).trim();
+          if (!data) continue;
+
+          // --- Marker Processing Logic ---
+          if (data.includes('[CONVERSATION_ID]')) {
+            const idMatch = data.match(/\[CONVERSATION_ID\]\s*(\w+)/);
+            if (idMatch?.[1]) {
+              this.conversationId = idMatch[1];
+              this.callbacks.onConversationId?.(idMatch[1]);
+            }
+            continue;
+          }
+          
+          if (data.includes('[WAR-GAME-DIRECTIVE-COMPLETE]')) {
+            this.callbacks.onComplete?.();
+            this.close();
+            return;
+          }
+          
+          if (data === '[THOUGHTS-BEGIN]') {
+            this.inThinking = true;
+            continue;
+          }
+          
+          if (data === '[THOUGHTS-END]' || data === '[THOUGHTS: none]') {
+            this.inThinking = false;
+            continue;
+          }
+          
+          if (data === '[DELIVERABLE-BEGIN]') {
+            this.inDeliverable = true;
+            continue;
+          }
+          
+          if (data === '[DELIVERABLE-END]' || data === '[DELIVERABLE: none]') {
+            this.inDeliverable = false;
+            continue;
+          }
+          
+          const partMatch = data.match(/^=== PART (\d+) ===/);
+          if (partMatch) {
+            this.currentPartNumber = parseInt(partMatch[1], 10);
+            this.callbacks.onDirectivePart?.(this.currentPartNumber);
+            continue;
+          }
+          
+          if (data === '[SEARCH_QUERIES]' || data === '[SEARCH_QUERIES: none]') {
+            continue;
+          }
+
+          // Add logic to capture the summarized facts delivered by the backend
+          if (data.includes('[SUMMARIZED_FACTS_BEGIN]')) {
+              const summaryMatch = data.match(/\[SUMMARIZED_FACTS_BEGIN\]\s*(.+)/);
+              if (summaryMatch) {
+                  sessionStorage.setItem('legal_case_description', summaryMatch[1].trim());
+              }
+              continue;
+          }
+          
+          // Capture individual search query lines (start with - or are after [SEARCH_QUERIES])
+          if (data.startsWith('- "') || data.startsWith('- \'') || data.startsWith('- ')) {
+            const query = data.replace(/^- ["']?|["']?$/g, '').trim();
+            if (query && query !== 'none') {
+              this.callbacks.onSearchQueries?.([query]);
+            }
+            continue;
+          }
+
+          // --- Content Delivery Logic ---
+          if (this.inDeliverable) {
+            if (this.currentPartNumber === 5) {
+              try {
+                const swotData: SwotMatrixData = JSON.parse(data);
+                this.callbacks.onDeliverable?.(swotData);
+              } catch (e) {
+                this.callbacks.onDeliverable?.(data);
+              }
+            } else {
+              this.callbacks.onDeliverable?.(data);
+            }
+          }
+          
+          if (this.inThinking) {
+            this.callbacks.onThinking?.(data);
+          }
+        }
+      }
+      
+    } catch (error) {
+      this.callbacks.onError?.("An error occurred while processing the stream.");
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  /**
+   * Closes the active network connection.
+   */
+  public close() {
+    console.log('🛑 Closing stream connection');
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
   }
 }
-
-// Export a ready-to-use default client configured with the backend URL
-export const defaultLegalStreamingClient = new LegalStreamingClient();
