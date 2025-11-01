@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ReferenceCasesDisplay } from '@/components/ReferenceCasesDisplay';
 
 interface MessageContentProps {
   content: string;
@@ -82,8 +81,8 @@ export const MessageContent: React.FC<MessageContentProps> = ({
   const formatContent = (text: string): string => {
     if (!text || typeof text !== 'string') return '';
 
-    // Normalize excessive newlines only (keep double newlines)
-    let processed = text.replace(/\n{4,}/g, '\n\n\n');
+    // Keep original text structure but collapse excessive newlines
+    let processed = text.replace(/\n{3,}/g, '\n\n');
 
     // Store code blocks temporarily to prevent them from being processed
     const codeBlocks: string[] = [];
@@ -204,8 +203,8 @@ export const MessageContent: React.FC<MessageContentProps> = ({
       processed = processed.replace(`__CODE_BLOCK_${i}__`, block);
     });
 
-    // Handle paragraphs - split on double newlines but preserve single newlines
-    const paragraphs = processed.split(/\n\n+/);
+    // Handle paragraphs - only split on 2+ consecutive newlines
+    const paragraphs = processed.split(/\n{2,}/);
     processed = paragraphs
       .map((para) => {
         const trimmed = para.trim();
@@ -222,8 +221,12 @@ export const MessageContent: React.FC<MessageContentProps> = ({
         ) {
           return trimmed;
         }
-        
-        // Convert single newlines to <br> for proper line breaks
+        // Only add <br> for single newlines if content doesn't contain HTML tags
+        // This prevents double spacing in formatted content
+        const hasHtmlTags = /<[^>]+>/.test(trimmed);
+        if (hasHtmlTags) {
+          return `<p class="mb-4">${trimmed}</p>`;
+        }
         const withBreaks = trimmed.replace(/\n/g, '<br>');
         return `<p class="mb-4">${withBreaks}</p>`;
       })
@@ -233,24 +236,15 @@ export const MessageContent: React.FC<MessageContentProps> = ({
     return processed;
   };
 
-  // Check if content contains reference cases
-  const hasReferenceCases = useMemo(() => {
-    return /###\s*Case\s*\d+:/i.test(content);
-  }, [content]);
-
   // Memoize formatted content to avoid re-processing on every render
   const formattedContent = useMemo(() => formatContent(content), [content]);
 
   return (
     <div className={`legal-message-content ${className}`}>
-      {hasReferenceCases ? (
-        <ReferenceCasesDisplay content={content} />
-      ) : (
-        <div
-          className="legal-formatted-text text-[15px] leading-relaxed text-foreground"
-          dangerouslySetInnerHTML={{ __html: formattedContent }}
-        />
-      )}
+      <div
+        className="legal-formatted-text text-[15px] leading-relaxed text-foreground"
+        dangerouslySetInnerHTML={{ __html: formattedContent }}
+      />
 
       {/* Copy button */}
       {showCopyButton && content && (
