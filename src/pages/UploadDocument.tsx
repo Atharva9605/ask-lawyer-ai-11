@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, RotateCcw, FileText, Clock, Upload, X } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { RotateCcw, FileText, Clock, Upload, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { LegalStreamingClient, SwotMatrixData } from '@/lib/legalStreamAPI';
 import { ProfessionalLegalChat } from '@/components/ProfessionalLegalChat';
 import SegmentedProgress from '@/components/SegmentedProgress';
+import { NavBar } from '@/components/NavBar';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface AnalysisState {
   partNumber: number;
@@ -67,6 +69,7 @@ const localParseSwotFromText = (text: string): SwotMatrixData | null => {
 const UploadDocument = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { token } = useAuth();
 
   const [caseFile, setCaseFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -200,7 +203,7 @@ const UploadDocument = () => {
     setStreamingClient(client);
 
     try {
-      await client.startAnalysis(caseFile);
+      await client.startAnalysis(caseFile, token || undefined);
     } catch {
       setError('Failed to connect to analysis service');
       setLoading(false);
@@ -214,15 +217,8 @@ const UploadDocument = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      <NavBar />
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Link to="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </Link>
-        </div>
 
         <div className="max-w-4xl mx-auto">
           {!hasStarted && !loading && analysisParts.length === 0 && (

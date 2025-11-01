@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, RotateCcw, FileText, Clock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { RotateCcw, FileText, Clock } from 'lucide-react';
 import { LegalStreamingClient, SwotMatrixData } from '@/lib/legalStreamAPI';
 import { ProfessionalLegalChat } from '@/components/ProfessionalLegalChat';
 import SegmentedProgress from '@/components/SegmentedProgress';
+import { NavBar } from '@/components/NavBar';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface AnalysisState {
   partNumber: number;
@@ -73,6 +74,7 @@ const parseSwotFromText = (text: string): SwotMatrixData | null => {
 
 const Analyze = () => {
   const { toast } = useToast();
+  const { token } = useAuth();
 
   const [caseDescription, setCaseDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -211,13 +213,11 @@ const Analyze = () => {
 
     setStreamingClient(client);
 
-    // --- FIX: Convert text input to a virtual File/Blob for the file-upload endpoint ---
     const textBlob = new Blob([caseDescription], { type: 'text/plain' });
     const virtualFile = new File([textBlob], "case_description.txt", { type: 'text/plain' });
     
     try {
-      // Pass the virtual File object to the startAnalysis method
-      await client.startAnalysis(virtualFile); 
+      await client.startAnalysis(virtualFile, token || undefined);
 
     } catch (err) {
       console.error('Failed to start analysis:', err);
@@ -229,20 +229,8 @@ const Analyze = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      <NavBar />
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Link to="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <Link to="/upload"> 
-            <Button variant="outline" size="sm">
-                Switch to File Upload
-            </Button>
-          </Link>
-        </div>
 
         <div className="max-w-4xl mx-auto">
           {!hasStarted && !loading && analysisParts.length === 0 && (

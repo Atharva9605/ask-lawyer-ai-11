@@ -8,14 +8,15 @@ import {
     Send, 
     Bot, 
     User, 
-    Download, 
-    ArrowLeft,
+    Download,
     Sparkles,
     MessageSquare
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LegalStreamingClient } from "@/lib/legalStreamAPI";
 import { motion, AnimatePresence } from "framer-motion";
+import { NavBar } from "@/components/NavBar";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Message {
     id: string;
@@ -26,6 +27,7 @@ interface Message {
 
 const Chat = () => {
     const navigate = useNavigate();
+    const { token } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -35,7 +37,6 @@ const Chat = () => {
     const [currentResponse, setCurrentResponse] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     
-    // Use ref to accumulate streamed content and avoid stale closures
     const streamedResponseRef = useRef('');
     const isStreamingRef = useRef(false);
 
@@ -148,7 +149,7 @@ const Chat = () => {
         setCurrentResponse('');
 
         try {
-            await streamingClient.sendChatMessage(trimmedInput);
+            await streamingClient.sendChatMessage(trimmedInput, token || undefined);
         } catch (error) {
             handleError(error instanceof Error ? error.message : "Failed to send message");
         }
@@ -201,8 +202,9 @@ const Chat = () => {
     };
 
     return (
-        <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
-            <div className="flex flex-col w-full max-w-5xl mx-auto">
+        <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+            <NavBar />
+            <div className="flex flex-col flex-1 w-full max-w-5xl mx-auto">
                 {/* Header */}
                 <motion.header 
                     initial={{ y: -20, opacity: 0 }}
@@ -210,31 +212,20 @@ const Chat = () => {
                     className="border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm"
                 >
                     <div className="flex items-center justify-between p-4">
-                        <div className="flex items-center gap-4">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => navigate('/analyze')}
-                                className="gap-2"
-                            >
-                                <ArrowLeft className="h-4 w-4" />
-                                Back
-                            </Button>
-                            <div className="flex items-center gap-3">
-                                <div className="relative">
-                                    <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full"></div>
-                                    <div className="relative w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-xl flex items-center justify-center shadow-lg">
-                                        <Sparkles className="h-5 w-5 text-white" />
-                                    </div>
+                        <div className="flex items-center gap-3">
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full"></div>
+                                <div className="relative w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-xl flex items-center justify-center shadow-lg">
+                                    <Sparkles className="h-5 w-5 text-white" />
                                 </div>
-                                <div>
-                                    <h1 className="text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">
-                                        Legal AI Assistant
-                                    </h1>
-                                    <p className="text-xs text-muted-foreground">
-                                        {loading ? "Thinking..." : "Ask me anything about your case"}
-                                    </p>
-                                </div>
+                            </div>
+                            <div>
+                                <h1 className="text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">
+                                    Legal AI Assistant
+                                </h1>
+                                <p className="text-xs text-muted-foreground">
+                                    {loading ? "Thinking..." : "Ask me anything about your case"}
+                                </p>
                             </div>
                         </div>
                         <Button

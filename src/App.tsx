@@ -3,34 +3,38 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import Landing from "./pages/Landing";
+import { AuthProvider } from "@/contexts/AuthContext";
+import Login from "./pages/Login";
 import Analyze from "./pages/Analyze";
-import Results from "./pages/Results";
 import Chat from "./pages/Chat";
 import UploadDocument from "./pages/UploadDocument";
+import Cases from "./pages/Cases";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/analyze" element={<Analyze />} />
-            <Route path="/upload" element={<UploadDocument />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/results" element={<Results />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Navigate to="/upload" replace />} />
+              <Route path="/upload" element={<UploadDocument />} />
+              <Route path="/analyze" element={<Analyze />} />
+              <Route path="/chat" element={<Chat />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/cases" element={<Cases />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

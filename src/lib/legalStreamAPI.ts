@@ -2,7 +2,7 @@
  * The base URL for your deployed FastAPI backend.
  * Ensure this points to your live Render service.
  */
-const API_BASE_URL = "http://localhost:8000"; // Replace with your actual backend URL
+const API_BASE_URL = "https://legal-backend-api-chatbot.onrender.com";
 
 /**
  * Defines the structured data format for the SWOT matrix,
@@ -49,35 +49,41 @@ export class LegalStreamingClient {
   /**
    * Initiates the legal analysis by sending the case facts (TEXT OR FILE) to the backend.
    * @param input The detailed description of the legal case (string) OR the file to upload (File).
+   * @param token Optional JWT token for authenticated requests
    */
-  async startAnalysis(input: string | File) {
+  async startAnalysis(input: string | File, token?: string) {
     console.log('🚀 Starting analysis...');
     this.close();
     this.abortController = new AbortController();
     this.callbacks.onStart?.();
 
     const url = `${API_BASE_URL}/generate_directive`;
-    let body: FormData | string;
+    let body: FormData;
     let headers: HeadersInit = {};
-    let method: string = 'POST';
 
-    // === LOGIC: Handle File Upload (Real or Virtual) ===
+    // Always use FormData for file upload
+    const formData = new FormData();
     if (input instanceof File) {
       console.log('📁 Sending file upload...');
-      const formData = new FormData();
-      formData.append('case_file', input); // Key must match FastAPI endpoint: case_file
-      body = formData;
-    } 
-    else {
-      console.log('⚠️ Text input mode is deprecated.');
-      this.callbacks.onError?.("The text input mode is temporarily unavailable. Please upload a file.");
-      return; 
+      formData.append('case_file', input);
+    } else {
+      // Convert string to file
+      console.log('📝 Converting text to file...');
+      const textBlob = new Blob([input], { type: 'text/plain' });
+      const textFile = new File([textBlob], 'case_description.txt', { type: 'text/plain' });
+      formData.append('case_file', textFile);
+    }
+    body = formData;
+
+    // Add auth token if provided
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     try {
       console.log('📡 Sending POST request...');
       const response = await fetch(url, {
-        method: method,
+        method: 'POST',
         headers: headers,
         body: body,
         signal: this.abortController.signal,
@@ -117,9 +123,9 @@ export class LegalStreamingClient {
   /**
    * Sends a follow-up chat message using the active conversation ID.
    * @param query The user's question.
+   * @param token Optional JWT token for authenticated requests
    */
-  async sendChatMessage(query: string) {
-    // FIX: Retrieve conversationId directly from sessionStorage for robustness
+  async sendChatMessage(query: string, token?: string) {
     const storedId = sessionStorage.getItem('legal_conversation_id');
     
     if (!storedId) {
@@ -131,10 +137,14 @@ export class LegalStreamingClient {
     const chatUrl = `${API_BASE_URL}/chat`;
 
     try {
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch(chatUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // FIX: Use the reliably fetched ID
+            headers,
             body: JSON.stringify({ query: query, conversation_id: storedId }), 
         });
 
@@ -145,6 +155,11 @@ export class LegalStreamingClient {
         }
 
         const reader = response.body?.getReader();
+        if (!reader) {
+          this.callbacks.onError?.("No response body received");
+          return;
+        }
+
         const decoder = new TextDecoder();
         let buffer = '';
 
@@ -154,14 +169,17 @@ export class LegalStreamingClient {
 
             buffer += decoder.decode(value, { stream: true });
             
-            // Process SSE events
-            const events = buffer.split('\n\n');
-            buffer = events.pop() || '';
+            // Process line-by-line SSE events
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
             
-            for (const event of events) {
-                if (event.startsWith('data:')) {
-                    const data = event.substring(5).trim();
-                    this.callbacks.onDeliverable?.(data); // Append chat response chunk
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith('data:')) {
+                    const data = trimmedLine.substring(5).trim();
+                    if (data && data !== '[DONE]') {
+                      this.callbacks.onDeliverable?.(data);
+                    }
                 }
             }
         }
