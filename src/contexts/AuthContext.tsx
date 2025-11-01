@@ -28,9 +28,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const storedToken = localStorage.getItem('auth_token');
     const storedUser = localStorage.getItem('auth_user');
     
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+    if (storedToken && storedUser && storedUser !== 'undefined') {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setToken(storedToken);
+        setUser(parsedUser);
+      } catch (error) {
+        console.error('Failed to parse stored user:', error);
+        // Clear invalid data
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+      }
     }
     setIsLoading(false);
   }, []);
@@ -48,8 +56,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const data = await response.json();
-    const { token: authToken, user: userData } = data;
+    const { token: authToken, userId, email: userEmail } = data;
 
+    const userData = { user_id: userId, email: userEmail };
     setToken(authToken);
     setUser(userData);
     localStorage.setItem('auth_token', authToken);
@@ -69,9 +78,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const data = await response.json();
-    const { token: authToken, userId } = data;
+    const { token: authToken, userId, email: userEmail } = data;
 
-    const userData = { user_id: userId, email };
+    const userData = { user_id: userId, email: userEmail };
     setToken(authToken);
     setUser(userData);
     localStorage.setItem('auth_token', authToken);
