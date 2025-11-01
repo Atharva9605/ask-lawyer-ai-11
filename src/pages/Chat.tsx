@@ -18,7 +18,6 @@ import { toast } from "@/hooks/use-toast";
 import { LegalStreamingClient } from "@/lib/legalStreamAPI";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { MessageContent } from "@/components/MessageContent";
 
 interface Message {
     id: string;
@@ -307,17 +306,11 @@ const Chat = () => {
                                                 : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-tl-sm'
                                             }
                                         `}>
-                                            {message.sender === 'user' ? (
-                                                <p className="text-sm leading-relaxed whitespace-pre-wrap text-white">
-                                                    {message.content}
-                                                </p>
-                                            ) : (
-                                                <MessageContent 
-                                                    content={message.content}
-                                                    showCopyButton={false}
-                                                    className="text-sm"
-                                                />
-                                            )}
+                                            <p className={`text-sm leading-relaxed whitespace-pre-wrap ${
+                                                message.sender === 'user' ? 'text-white' : 'text-slate-700 dark:text-slate-300'
+                                            }`}>
+                                                {message.content}
+                                            </p>
                                         </div>
                                         <span className="text-xs text-muted-foreground px-1">
                                             {formatTimestamp(message.timestamp)}
@@ -339,12 +332,10 @@ const Chat = () => {
                                     </Avatar>
                                     <div className="flex-1 max-w-[80%]">
                                         <div className="px-5 py-3 rounded-2xl rounded-tl-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-                                            <MessageContent 
-                                                content={currentResponse}
-                                                showCopyButton={false}
-                                                className="text-sm"
-                                            />
-                                            <span className="inline-block w-1 h-4 bg-primary ml-1 animate-pulse"></span>
+                                            <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                                                {currentResponse}
+                                                <span className="inline-block w-1 h-4 bg-primary ml-1 animate-pulse"></span>
+                                            </p>
                                         </div>
                                     </div>
                                 </motion.div>

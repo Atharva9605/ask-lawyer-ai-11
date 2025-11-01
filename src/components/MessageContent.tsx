@@ -81,8 +81,12 @@ export const MessageContent: React.FC<MessageContentProps> = ({
   const formatContent = (text: string): string => {
     if (!text || typeof text !== 'string') return '';
 
-    // Keep original text structure but collapse excessive newlines
-    let processed = text.replace(/\n{3,}/g, '\n\n');
+    // Normalize whitespace: trim lines and collapse multiple newlines
+    let processed = text
+      .split('\n')
+      .map(line => line.trim())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n'); // Collapse 3+ newlines to 2
 
     // Store code blocks temporarily to prevent them from being processed
     const codeBlocks: string[] = [];
@@ -221,12 +225,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({
         ) {
           return trimmed;
         }
-        // Only add <br> for single newlines if content doesn't contain HTML tags
-        // This prevents double spacing in formatted content
-        const hasHtmlTags = /<[^>]+>/.test(trimmed);
-        if (hasHtmlTags) {
-          return `<p class="mb-4">${trimmed}</p>`;
-        }
+        // Replace single newlines with <br> only if they're not already part of HTML
         const withBreaks = trimmed.replace(/\n/g, '<br>');
         return `<p class="mb-4">${withBreaks}</p>`;
       })
