@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,12 +10,13 @@ import {
     User, 
     Download,
     Sparkles,
-    MessageSquare
+    MessageSquare,
+    ArrowLeft,
+    Scale
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LegalStreamingClient } from "@/lib/legalStreamAPI";
 import { motion, AnimatePresence } from "framer-motion";
-import { NavBar } from "@/components/NavBar";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Message {
@@ -27,7 +28,7 @@ interface Message {
 
 const Chat = () => {
     const navigate = useNavigate();
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -203,7 +204,6 @@ const Chat = () => {
 
     return (
         <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
-            <NavBar />
             <div className="flex flex-col flex-1 w-full max-w-5xl mx-auto">
                 {/* Header */}
                 <motion.header 
@@ -212,20 +212,29 @@ const Chat = () => {
                     className="border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm"
                 >
                     <div className="flex items-center justify-between p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="relative">
-                                <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full"></div>
-                                <div className="relative w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-xl flex items-center justify-center shadow-lg">
-                                    <Sparkles className="h-5 w-5 text-white" />
+                        <div className="flex items-center gap-4">
+                            <Link to={user ? "/dashboard" : "/"}>
+                                <Button variant="ghost" size="sm" className="gap-2">
+                                    <ArrowLeft className="w-4 h-4" />
+                                    Back
+                                </Button>
+                            </Link>
+                            <div className="flex items-center gap-3">
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-amber-600/20 blur-xl rounded-full"></div>
+                                    <div className="relative w-10 h-10 bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl flex items-center justify-center shadow-lg">
+                                        <Sparkles className="h-5 w-5 text-white" />
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <h1 className="text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">
-                                    Legal AI Assistant
-                                </h1>
-                                <p className="text-xs text-muted-foreground">
-                                    {loading ? "Thinking..." : "Ask me anything about your case"}
-                                </p>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <Scale className="w-4 h-4 text-amber-600" />
+                                        <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">CaseMind Chat</h1>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {loading ? "Thinking..." : "Ask me anything about your case"}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                         <Button

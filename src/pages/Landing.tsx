@@ -13,10 +13,13 @@ const Landing = () => {
             <div className="flex items-center gap-2">
               <Scale className="w-8 h-8 text-amber-600" />
               <div>
-                <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Legal Advisor AI Agent</h1>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Professional AI-powered legal analysis</p>
+                <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">CaseMind</h1>
+                <p className="text-sm text-slate-600 dark:text-slate-400">AI-Powered Legal Intelligence</p>
               </div>
             </div>
+            <Link to="/login">
+              <Button variant="default">Get Started</Button>
+            </Link>
           </div>
         </div>
       </header>
@@ -32,8 +35,8 @@ const Landing = () => {
           </div>
           
           <h1 className="text-4xl md:text-6xl font-bold text-slate-900 dark:text-slate-100 mb-6">
-            Legal Advisor
-            <span className="block text-amber-600">AI Agent</span>
+            <span className="text-amber-600">CaseMind</span>
+            <span className="block text-slate-900 dark:text-slate-100">Legal Intelligence Platform</span>
           </h1>
           
           <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-400 mb-8 max-w-3xl mx-auto">
@@ -42,9 +45,9 @@ const Landing = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-            <Link to="/analyze">
+            <Link to="/login">
               <Button size="lg" className="text-lg px-8 py-4 h-auto">
-                Start Legal Analysis
+                Get Started Free
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </Link>
@@ -148,9 +151,9 @@ const Landing = () => {
             <p className="text-lg mb-6 text-blue-100">
               Start your legal case analysis now with our AI-powered platform
             </p>
-            <Link to="/analyze">
+            <Link to="/login">
               <Button size="lg" variant="secondary" className="text-lg px-8 py-4 h-auto bg-white text-slate-900 hover:bg-slate-100">
-                Start Legal Analysis
+                Get Started Now
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </Link>
@@ -170,7 +173,7 @@ const Landing = () => {
               Always consult with a qualified lawyer for professional legal advice.
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-500">
-              &copy; 2025 Legal Advisor AI Agent. All rights reserved.
+              &copy; 2025 CaseMind. All rights reserved.
             </p>
           </div>
         </div>

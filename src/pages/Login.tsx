@@ -31,10 +31,10 @@ const Login = () => {
         await signup(email, password);
         toast({
           title: 'Account created!',
-          description: 'Successfully signed up.',
+          description: 'Welcome to CaseMind.',
         });
       }
-      navigate('/upload');
+      navigate('/dashboard');
     } catch (error) {
       toast({
         title: isLoginMode ? 'Login failed' : 'Signup failed',
@@ -50,12 +50,12 @@ const Login = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-            <Scale className="w-8 h-8 text-primary" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 mb-4">
+            <Scale className="w-8 h-8 text-amber-600" />
           </div>
-          <h1 className="text-3xl font-bold mb-2">Legal AI Strategos</h1>
+          <h1 className="text-3xl font-bold mb-2">CaseMind</h1>
           <p className="text-muted-foreground">
-            {isLoginMode ? 'Sign in to your account' : 'Create your account'}
+            {isLoginMode ? 'Welcome back' : 'Start your legal intelligence journey'}
           </p>
         </div>
 

@@ -3,14 +3,15 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import UploadDocument from "./pages/UploadDocument";
 import Analyze from "./pages/Analyze";
 import Chat from "./pages/Chat";
-import UploadDocument from "./pages/UploadDocument";
-import Cases from "./pages/Cases";
 
 const queryClient = new QueryClient();
 
@@ -23,12 +24,12 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<Navigate to="/upload" replace />} />
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/upload" element={<UploadDocument />} />
               <Route path="/analyze" element={<Analyze />} />
               <Route path="/chat" element={<Chat />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/cases" element={<Cases />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>

@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { RotateCcw, FileText, Clock } from 'lucide-react';
+import { RotateCcw, FileText, Clock, ArrowLeft, Scale } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { LegalStreamingClient, SwotMatrixData } from '@/lib/legalStreamAPI';
 import { ProfessionalLegalChat } from '@/components/ProfessionalLegalChat';
 import SegmentedProgress from '@/components/SegmentedProgress';
-import { NavBar } from '@/components/NavBar';
 import { useAuth } from '@/contexts/AuthContext';
 
 export interface AnalysisState {
@@ -74,7 +74,7 @@ const parseSwotFromText = (text: string): SwotMatrixData | null => {
 
 const Analyze = () => {
   const { toast } = useToast();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
   const [caseDescription, setCaseDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -228,8 +228,30 @@ const Analyze = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-      <NavBar />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
+      {/* Header */}
+      <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <Link to={user ? "/dashboard" : "/"}>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <ArrowLeft className="w-4 h-4" />
+                  Back
+                </Button>
+              </Link>
+              <div className="flex items-center gap-2">
+                <Scale className="w-6 h-6 text-amber-600" />
+                <span className="font-bold text-lg text-slate-900 dark:text-slate-100">CaseMind</span>
+              </div>
+            </div>
+            <Link to="/upload">
+              <Button variant="outline" size="sm">Switch to File Upload</Button>
+            </Link>
+          </div>
+        </div>
+      </header>
+
       <div className="container mx-auto px-4 py-8">
 
         <div className="max-w-4xl mx-auto">
