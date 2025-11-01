@@ -85,8 +85,14 @@ export const MessageContent: React.FC<MessageContentProps> = ({
     // Filter out Google Search grounding warning
     let processed = text.replace(/⚠️\s*\*?Note:\s*Google\s*Search\s*grounding\s*not\s*available\s*in\s*this\s*response\.\*?/gi, '');
     
-    // Add spaces after punctuation that's missing them (common in streaming text)
-    processed = processed.replace(/([.!?:,])([A-Z*])/g, '$1 $2');
+    // Fix concatenated text - add space before capital letters that follow lowercase
+    processed = processed.replace(/([a-z])([A-Z])/g, '$1 $2');
+    
+    // Add spaces after punctuation that's missing them
+    processed = processed.replace(/([.!?:,;])([A-Za-z*])/g, '$1 $2');
+    
+    // Fix common concatenations with asterisks
+    processed = processed.replace(/(\*+)([A-Z][a-z])/g, '$1 $2');
     
     // Normalize excessive newlines only (keep double newlines)
     processed = processed.replace(/\n{4,}/g, '\n\n\n');
