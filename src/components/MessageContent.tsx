@@ -81,7 +81,12 @@ export const MessageContent: React.FC<MessageContentProps> = ({
   const formatContent = (text: string): string => {
     if (!text || typeof text !== 'string') return '';
 
-    let processed = text;
+    // Normalize whitespace: trim lines and collapse multiple newlines
+    let processed = text
+      .split('\n')
+      .map(line => line.trim())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n'); // Collapse 3+ newlines to 2
 
     // Store code blocks temporarily to prevent them from being processed
     const codeBlocks: string[] = [];

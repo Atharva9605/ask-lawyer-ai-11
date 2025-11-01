@@ -231,11 +231,13 @@ export class LegalStreamingClient {
           if (!data) continue;
 
           // --- Marker Processing Logic ---
-          if (data.includes('[CONVERSATION_ID]')) {
-            const idMatch = data.match(/\[CONVERSATION_ID\]\s*(\w+)/);
+          // Backend sends: [ID: xxx]
+          if (data.includes('[ID:')) {
+            const idMatch = data.match(/\[ID:\s*(\w+)\]/);
             if (idMatch?.[1]) {
               this.conversationId = idMatch[1];
               this.callbacks.onConversationId?.(idMatch[1]);
+              console.log('✅ Conversation ID received:', idMatch[1]);
             }
             continue;
           }
