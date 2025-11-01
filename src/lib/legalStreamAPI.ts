@@ -73,9 +73,14 @@ export class LegalStreamingClient {
       const textFile = new File([textBlob], 'case_description.txt', { type: 'text/plain' });
       formData.append('case_file', textFile);
     }
+    
+    // Add optional case_description field
+    formData.append('case_description', '');
+    formData.append('first_instruction', '');
+    
     body = formData;
 
-    // Add auth token if provided
+    // Add auth token if provided (in headers, not FormData)
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
