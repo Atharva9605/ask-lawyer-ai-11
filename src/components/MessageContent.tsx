@@ -82,8 +82,14 @@ export const MessageContent: React.FC<MessageContentProps> = ({
   const formatContent = (text: string): string => {
     if (!text || typeof text !== 'string') return '';
 
+    // Filter out Google Search grounding warning
+    let processed = text.replace(/⚠️\s*\*?Note:\s*Google\s*Search\s*grounding\s*not\s*available\s*in\s*this\s*response\.\*?/gi, '');
+    
+    // Add spaces after punctuation that's missing them (common in streaming text)
+    processed = processed.replace(/([.!?:,])([A-Z*])/g, '$1 $2');
+    
     // Normalize excessive newlines only (keep double newlines)
-    let processed = text.replace(/\n{4,}/g, '\n\n\n');
+    processed = processed.replace(/\n{4,}/g, '\n\n\n');
 
     // Store code blocks temporarily to prevent them from being processed
     const codeBlocks: string[] = [];
