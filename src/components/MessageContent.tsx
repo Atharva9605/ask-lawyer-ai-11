@@ -82,36 +82,8 @@ export const MessageContent: React.FC<MessageContentProps> = ({
   const formatContent = (text: string): string => {
     if (!text || typeof text !== 'string') return '';
 
-    // Filter out Google Search grounding warning
-    let processed = text.replace(/⚠️\s*\*?Note:\s*Google\s*Search\s*grounding\s*not\s*available\s*in\s*this\s*response\.\*?/gi, '');
-    
-    // AGGRESSIVE SPACING FIXES FOR CONCATENATED TEXT
-    
-    // 1. Add space before capital letters that follow lowercase letters
-    processed = processed.replace(/([a-z])([A-Z])/g, '$1 $2');
-    
-    // 2. Add space after sentence-ending punctuation (., !, ?)
-    processed = processed.replace(/([.!?])([A-Z])/g, '$1 $2');
-    
-    // 3. Add space after commas, colons, semicolons
-    processed = processed.replace(/([,:;])([A-Za-z])/g, '$1 $2');
-    
-    // 4. Add space before opening parenthesis if preceded by letter
-    processed = processed.replace(/([A-Za-z])(\()/g, '$1 $2');
-    
-    // 5. Add space after closing parenthesis if followed by letter
-    processed = processed.replace(/(\))([A-Za-z])/g, '$1 $2');
-    
-    // 6. Fix asterisks/bold markers concatenated with words
-    processed = processed.replace(/(\*+)([A-Za-z])/g, '$1 $2');
-    processed = processed.replace(/([A-Za-z])(\*+)/g, '$1 $2');
-    
-    // 7. Add space around slashes
-    processed = processed.replace(/([A-Za-z])(\/)/g, '$1 $2');
-    processed = processed.replace(/(\/)([A-Za-z])/g, '$1 $2');
-    
-    // Normalize excessive newlines
-    processed = processed.replace(/\n{4,}/g, '\n\n\n');
+    // Normalize excessive newlines only (keep double newlines)
+    let processed = text.replace(/\n{4,}/g, '\n\n\n');
 
     // Store code blocks temporarily to prevent them from being processed
     const codeBlocks: string[] = [];
