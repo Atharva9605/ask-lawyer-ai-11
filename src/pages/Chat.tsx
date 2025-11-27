@@ -78,17 +78,11 @@ const Chat: React.FC = () => {
   const handleDeliverable = useCallback((content: string) => {
     if (typeof content !== "string" || !isStreamingRef.current) return;
 
-    // Clean and normalize the chunk
     const cleaned = cleanStreamChunk(content);
-    let normalized = cleaned
-      .replace(/\s+/g, " ") // collapse repeated whitespace
-      .replace(/([a-z])([A-Z])/g, "$1 $2") // split camel-stuck words
-      .replace(/\.([A-Za-z])/g, ". $1"); // ensure space after periods
+    if (!cleaned) return;
 
-    if (!normalized.trim()) return;
-
-    // Accumulate with safe spacing between chunks
-    streamedResponseRef.current = appendChunkWithSpacing(streamedResponseRef.current, normalized);
+    // Directly append streamed content without injecting extra spaces
+    streamedResponseRef.current += cleaned;
 
     // Update display state
     setCurrentResponse(streamedResponseRef.current);
