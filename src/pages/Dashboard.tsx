@@ -94,6 +94,8 @@ const Dashboard: React.FC = () => {
   }, [token, user, navigate, toast]);
 
   const handleCaseClick = (caseItem: Case) => {
+    if (!caseItem._id) return;
+    
     sessionStorage.setItem('legal_conversation_id', caseItem._id);
     if (caseItem.case_facts) {
       sessionStorage.setItem('legal_case_description', caseItem.case_facts);
@@ -101,7 +103,9 @@ const Dashboard: React.FC = () => {
     navigate('/chat');
   };
 
-  const toggleTimeline = (caseId: string) => {
+  const toggleTimeline = (caseId: string | undefined) => {
+    if (!caseId) return;
+    
     setExpandedTimelines(prev => {
       const newSet = new Set(prev);
       if (newSet.has(caseId)) {
@@ -189,7 +193,7 @@ const Dashboard: React.FC = () => {
           </Card>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {cases.map((caseItem) => (
+            {cases.filter(c => c._id).map((caseItem) => (
               <Card key={caseItem._id} className="group hover:shadow-lg transition-all duration-300 border-border overflow-hidden">
                 <CardContent className="p-0">
                   {/* Card Header */}
@@ -197,7 +201,7 @@ const Dashboard: React.FC = () => {
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-semibold text-primary mb-1 tracking-wide uppercase">
-                          {caseItem.case_number || 'CV-2025-' + caseItem._id.slice(-3).toUpperCase()}
+                          {caseItem.case_number || (caseItem._id ? 'CV-2025-' + caseItem._id.slice(-3).toUpperCase() : 'CV-2025-NEW')}
                         </div>
                         <h3 className="text-lg font-bold text-foreground truncate">
                           {caseItem.client_name || caseItem.file_name || 'Untitled Case'}
@@ -264,16 +268,16 @@ const Dashboard: React.FC = () => {
                   </div>
 
                   {/* Timeline Section */}
-                  {caseItem.hearing_history && caseItem.hearing_history.length > 0 && (
+                  {caseItem.hearing_history && Array.isArray(caseItem.hearing_history) && caseItem.hearing_history.length > 0 && (
                     <Collapsible
-                      open={expandedTimelines.has(caseItem._id)}
-                      onOpenChange={() => toggleTimeline(caseItem._id)}
+                      open={expandedTimelines.has(caseItem._id || '')}
+                      onOpenChange={() => toggleTimeline(caseItem._id || '')}
                     >
                       <CollapsibleTrigger className="w-full px-6 py-4 flex items-center justify-between hover:bg-muted/30 transition-colors border-b">
                         <span className="text-sm font-semibold text-foreground">View Hearing Timeline</span>
                         <ChevronDown
                           className={`w-4 h-4 text-muted-foreground transition-transform ${
-                            expandedTimelines.has(caseItem._id) ? 'rotate-180' : ''
+                            expandedTimelines.has(caseItem._id || '') ? 'rotate-180' : ''
                           }`}
                         />
                       </CollapsibleTrigger>
