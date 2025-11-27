@@ -26,14 +26,17 @@ interface Message {
 const cleanStreamChunk = (chunk: string) => {
   if (!chunk) return "";
   
-  // Remove common unwanted patterns
+  // Remove all unwanted AI prefix patterns
   let cleaned = chunk
+    .replace(/Greetings\.?/gi, "")
     .replace(/IamtheAILegalStrategos/gi, "")
+    .replace(/Iampreparedtoaddress.*?Indianlegalsystem\.?/gi, "")
+    .replace(/Pleasestateyourquestion\.?/gi, "")
     .replace(/⚠️\*?Note:GoogleSearchgroundingnotavailableinthisresponse\.\*?/gi, "")
-    .replace(/TheWarGameDirectivefor.*?isfullyloaded\./gi, "")
-    .replace(/Stateyourquery\./gi, "");
+    .replace(/TheWarGameDirectivefor.*?isfullyloaded\.?/gi, "")
+    .replace(/Stateyourquery\.?/gi, "");
   
-  return cleaned;
+  return cleaned.trim();
 };
 
 // Helper: append chunks while ensuring proper spacing between words
