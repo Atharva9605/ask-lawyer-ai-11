@@ -225,9 +225,9 @@ export const MessageContent: React.FC<MessageContentProps> = ({
         ) {
           return trimmed;
         }
-        // Replace single newlines with <br> only if they're not already part of HTML
-        const withBreaks = trimmed.replace(/\n/g, '<br>');
-        return `<p class="mb-4">${withBreaks}</p>`;
+        // Keep single newlines as spaces within paragraphs - no <br> tags
+        const withSpaces = trimmed.replace(/\n/g, ' ');
+        return `<p class="mb-4">${withSpaces}</p>`;
       })
       .filter(p => p)
       .join('');
