@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,13 +47,14 @@ const getStatusLabel = (status?: string): string => {
   return status;
 };
 
-const Dashboard = () => {
+const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const { token, user } = useAuth();
+  const { toast } = useToast();
+  
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
-  const { token, user } = useAuth();
-  const { toast } = useToast();
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (!token || !user) {
