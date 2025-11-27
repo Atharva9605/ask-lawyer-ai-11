@@ -15,6 +15,16 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
+        discovery:
+          "border-transparent bg-[hsl(var(--status-discovery))] text-white hover:opacity-90",
+        arguments:
+          "border-transparent bg-[hsl(var(--status-arguments))] text-white hover:opacity-90",
+        judgment:
+          "border-transparent bg-[hsl(var(--status-judgment))] text-white hover:opacity-90",
+        pending:
+          "border-transparent bg-[hsl(var(--status-pending))] text-white hover:opacity-90",
+        closed:
+          "border-transparent bg-[hsl(var(--status-closed))] text-white hover:opacity-90",
       },
     },
     defaultVariants: {
