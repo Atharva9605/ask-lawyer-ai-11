@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { LegalStreamingClient } from "@/lib/legalStreamAPI";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { MessageContent } from "@/components/MessageContent";
 
 interface Message {
     id: string;
@@ -300,17 +301,24 @@ const Chat = () => {
                                     
                                     <div className={`flex-1 max-w-[80%] ${message.sender === 'user' ? 'items-end' : 'items-start'} flex flex-col gap-2`}>
                                         <div className={`
-                                            px-5 py-3 rounded-2xl shadow-sm
+                                            rounded-2xl shadow-sm
                                             ${message.sender === 'user' 
-                                                ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm' 
+                                                ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm px-5 py-3' 
                                                 : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-tl-sm'
                                             }
                                         `}>
-                                            <p className={`text-sm leading-relaxed whitespace-pre-wrap ${
-                                                message.sender === 'user' ? 'text-white' : 'text-slate-700 dark:text-slate-300'
-                                            }`}>
-                                                {message.content}
-                                            </p>
+                                            {message.sender === 'user' ? (
+                                                <p className="text-sm leading-relaxed whitespace-pre-wrap text-white">
+                                                    {message.content}
+                                                </p>
+                                            ) : (
+                                                <div className="px-5 py-3">
+                                                    <MessageContent 
+                                                        content={message.content} 
+                                                        showCopyButton={false}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                         <span className="text-xs text-muted-foreground px-1">
                                             {formatTimestamp(message.timestamp)}
@@ -331,11 +339,14 @@ const Chat = () => {
                                         </AvatarFallback>
                                     </Avatar>
                                     <div className="flex-1 max-w-[80%]">
-                                        <div className="px-5 py-3 rounded-2xl rounded-tl-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-                                            <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-                                                {currentResponse}
+                                        <div className="rounded-2xl rounded-tl-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                            <div className="px-5 py-3">
+                                                <MessageContent 
+                                                    content={currentResponse} 
+                                                    showCopyButton={false}
+                                                />
                                                 <span className="inline-block w-1 h-4 bg-primary ml-1 animate-pulse"></span>
-                                            </p>
+                                            </div>
                                         </div>
                                     </div>
                                 </motion.div>
