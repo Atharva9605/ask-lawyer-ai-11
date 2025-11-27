@@ -26,15 +26,17 @@ interface Message {
 const cleanStreamChunk = (chunk: string) => {
   if (!chunk) return "";
   
-  // Remove all unwanted AI prefix patterns
+  // Remove all unwanted AI prefix patterns (including the long greeting block)
   let cleaned = chunk
+    .replace(/Greetings\.IamtheAILegalStrategos.*?Pleasestateyourquestion\.⚠️?/gi, "")
     .replace(/Greetings\.?/gi, "")
     .replace(/IamtheAILegalStrategos/gi, "")
     .replace(/Iampreparedtoaddress.*?Indianlegalsystem\.?/gi, "")
     .replace(/Pleasestateyourquestion\.?/gi, "")
     .replace(/⚠️\*?Note:GoogleSearchgroundingnotavailableinthisresponse\.\*?/gi, "")
     .replace(/TheWarGameDirectivefor.*?isfullyloaded\.?/gi, "")
-    .replace(/Stateyourquery\.?/gi, "");
+    .replace(/Stateyourquery\.?/gi, "")
+    .replace(/⚠️/g, "");
   
   return cleaned.trim();
 };
