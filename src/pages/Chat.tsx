@@ -36,6 +36,22 @@ const cleanStreamChunk = (chunk: string) => {
   return cleaned;
 };
 
+// Helper: append chunks while ensuring proper spacing between words
+const appendChunkWithSpacing = (existing: string, next: string) => {
+  if (!existing) return next;
+  if (!next) return existing;
+
+  const lastChar = existing[existing.length - 1];
+  const firstChar = next[0];
+  const isBoundary = (ch: string) => /\s|[.,!?;:]/.test(ch);
+
+  if (!isBoundary(lastChar) && !isBoundary(firstChar)) {
+    return `${existing} ${next}`;
+  }
+
+  return existing + next;
+};
+
 const Chat: React.FC = () => {
   const navigate = useNavigate();
   const { token, user } = useAuth() || { token: null, user: null };
@@ -62,13 +78,18 @@ const Chat: React.FC = () => {
   const handleDeliverable = useCallback((content: string) => {
     if (typeof content !== "string" || !isStreamingRef.current) return;
 
-    // Clean the chunk
+    // Clean and normalize the chunk
     const cleaned = cleanStreamChunk(content);
-    if (!cleaned.trim()) return;
+    let normalized = cleaned
+      .replace(/\s+/g, " ") // collapse repeated whitespace
+      .replace(/([a-z])([A-Z])/g, "$1 $2") // split camel-stuck words
+      .replace(/\.([A-Za-z])/g, ". $1"); // ensure space after periods
 
-    // Accumulate in ref for final message
-    streamedResponseRef.current += cleaned;
-    
+    if (!normalized.trim()) return;
+
+    // Accumulate with safe spacing between chunks
+    streamedResponseRef.current = appendChunkWithSpacing(streamedResponseRef.current, normalized);
+
     // Update display state
     setCurrentResponse(streamedResponseRef.current);
   }, []);
@@ -337,6 +358,39 @@ const Chat: React.FC = () => {
                   </div>
                 </motion.div>
               ))}
+
+              {loading && !currentResponse && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex gap-4 mb-6"
+                >
+                  <Avatar className="h-10 w-10 shadow-lg">
+                    <AvatarFallback className="bg-gradient-to-br from-primary to-primary/60">
+                      <Bot className="h-5 w-5 text-white animate-pulse" />
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <div className="flex-1 max-w-[80%]">
+                    <div className="rounded-2xl rounded-tl-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm px-5 py-3">
+                      <div className="flex items-center space-x-1">
+                        <span
+                          className="w-2 h-2 rounded-full bg-primary animate-bounce"
+                          style={{ animationDelay: "0ms" }}
+                        />
+                        <span
+                          className="w-2 h-2 rounded-full bg-primary/80 animate-bounce"
+                          style={{ animationDelay: "150ms" }}
+                        />
+                        <span
+                          className="w-2 h-2 rounded-full bg-primary/60 animate-bounce"
+                          style={{ animationDelay: "300ms" }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
               {currentResponse && (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex gap-4 mb-6">
