@@ -22,14 +22,18 @@ interface Message {
   timestamp: Date;
 }
 
-// Helper: normalize incoming streamed chunks
-const normalizeChunk = (chunk: string) => {
+// Helper: clean unwanted prefixes from the stream
+const cleanStreamChunk = (chunk: string) => {
   if (!chunk) return "";
-  // normalize whitespace sequences
-  let s = chunk.replace(/\s+/g, " ");
-  // insert space between camel-cased stuck tokens like "IamtheAI" => "Iam the AI"
-  s = s.replace(/([a-z])([A-Z])/g, "$1 $2");
-  return s;
+  
+  // Remove common unwanted patterns
+  let cleaned = chunk
+    .replace(/IamtheAILegalStrategos/gi, "")
+    .replace(/⚠️\*?Note:GoogleSearchgroundingnotavailableinthisresponse\.\*?/gi, "")
+    .replace(/TheWarGameDirectivefor.*?isfullyloaded\./gi, "")
+    .replace(/Stateyourquery\./gi, "");
+  
+  return cleaned;
 };
 
 const Chat: React.FC = () => {
@@ -58,20 +62,15 @@ const Chat: React.FC = () => {
   const handleDeliverable = useCallback((content: string) => {
     if (typeof content !== "string" || !isStreamingRef.current) return;
 
-    // Skip any known unwanted intro only on the very first chunk
-    if (!firstChunkSkippedRef.current) {
-      // crude check: if the chunk looks like a model identity or contains the warning token, skip
-      const lowered = content.toLowerCase();
-      if (lowered.includes("iamtheailegalstrategos") || lowered.includes("⚠️note")) {
-        firstChunkSkippedRef.current = true;
-        return;
-      }
-      firstChunkSkippedRef.current = true;
-    }
+    // Clean the chunk
+    const cleaned = cleanStreamChunk(content);
+    if (!cleaned.trim()) return;
 
-    const safe = normalizeChunk(content);
-    streamedResponseRef.current += safe;
-    setCurrentResponse((prev) => prev + safe);
+    // Accumulate in ref for final message
+    streamedResponseRef.current += cleaned;
+    
+    // Update display state
+    setCurrentResponse(streamedResponseRef.current);
   }, []);
 
   const handleComplete = useCallback(() => {
@@ -88,10 +87,10 @@ const Chat: React.FC = () => {
       setMessages((prev) => [...prev, aiMessage]);
     }
 
+    // Reset all streaming state
     streamedResponseRef.current = "";
     setCurrentResponse("");
     setLoading(false);
-    firstChunkSkippedRef.current = false;
   }, []);
 
   const handleError = useCallback((error: string) => {
@@ -101,11 +100,11 @@ const Chat: React.FC = () => {
       variant: "destructive",
     });
 
+    // Reset all streaming state
     streamedResponseRef.current = "";
     setCurrentResponse("");
     setLoading(false);
     isStreamingRef.current = false;
-    firstChunkSkippedRef.current = false;
   }, []);
 
   useEffect(() => {
@@ -174,8 +173,8 @@ const Chat: React.FC = () => {
     setInput("");
     setLoading(true);
     isStreamingRef.current = true;
-    firstChunkSkippedRef.current = false;
 
+    // Clear previous streaming state
     streamedResponseRef.current = "";
     setCurrentResponse("");
 
