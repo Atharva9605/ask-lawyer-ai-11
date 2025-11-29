@@ -33,12 +33,16 @@ const DirectiveView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('DirectiveView mounted', { token: !!token, user: !!user, hearingId });
+    
     if (!token || !user) {
+      console.log('No auth, redirecting to login');
       navigate('/login');
       return;
     }
 
     if (!hearingId) {
+      console.log('No hearingId, redirecting to dashboard');
       toast({
         title: 'Error',
         description: 'Missing hearing information',
@@ -54,6 +58,7 @@ const DirectiveView: React.FC = () => {
   const fetchDirective = async () => {
     try {
       setIsLoading(true);
+      console.log('Fetching directive for hearing:', hearingId);
 
       const response = await fetch(
         `${API_BASE_URL}/hearings/${hearingId}`,
@@ -64,13 +69,17 @@ const DirectiveView: React.FC = () => {
         }
       );
 
+      console.log('Response status:', response.status);
+
       if (!response.ok) {
         throw new Error('Failed to fetch directive');
       }
 
       const data = await response.json();
+      console.log('Directive data received:', data);
       setDirective(data);
     } catch (error) {
+      console.error('Error fetching directive:', error);
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to load directive',
@@ -108,6 +117,8 @@ const DirectiveView: React.FC = () => {
     }
     navigate('/chat');
   };
+
+  console.log('Rendering DirectiveView', { isLoading, hasDirective: !!directive });
 
   return (
     <div className="min-h-screen bg-background">
