@@ -325,7 +325,7 @@ const DirectiveView: React.FC = () => {
                   variant="outline"
                   size="sm"
                   onClick={handlePrintPDF}
-                  className="gap-2"
+                  className="gap-2 font-semibold"
                 >
                   <Printer className="w-4 h-4" />
                   Export PDF
@@ -334,15 +334,15 @@ const DirectiveView: React.FC = () => {
                   variant="outline"
                   size="sm"
                   onClick={handleDownload}
-                  className="gap-2"
+                  className="gap-2 font-semibold"
                 >
                   <Download className="w-4 h-4" />
-                  Download
+                  Download MD
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleContinueChat}
-                  className="gap-2"
+                  className="gap-2 font-semibold"
                 >
                   <MessageSquare className="w-4 h-4" />
                   Continue Chat

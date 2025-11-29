@@ -72,7 +72,7 @@ export const CaseFactsSummary: React.FC<CaseFactsSummaryProps> = ({ caseFacts })
           variant="ghost"
           size="sm"
           onClick={handleExportPDF}
-          className="text-white hover:bg-white/20 gap-2"
+          className="text-white hover:bg-white/20 gap-2 font-semibold"
         >
           <Printer className="w-4 h-4" />
           Export PDF
