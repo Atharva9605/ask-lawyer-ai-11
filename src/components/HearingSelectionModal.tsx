@@ -106,34 +106,36 @@ export const HearingSelectionModal: React.FC<HearingSelectionModalProps> = ({
                     className="cursor-pointer hover:shadow-md transition-all border-2 hover:border-primary/50"
                     onClick={() => handleHearingSelect(hearing)}
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                              <span className="text-lg font-bold text-primary">
-                                {hearing.hearing_number}
-                              </span>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-foreground">
-                                Hearing #{hearing.hearing_number}
-                              </h4>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Calendar className="w-3 h-3" />
-                                {format(new Date(hearing.date), 'MMM d, yyyy')}
-                              </div>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                            <span className="text-xl font-bold text-primary">
+                              #{hearing.hearing_number}
+                            </span>
+                          </div>
+                          <div>
+                            <h4 className="text-lg font-bold text-foreground mb-1">
+                              Hearing #{hearing.hearing_number}
+                            </h4>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Calendar className="w-4 h-4" />
+                              {format(new Date(hearing.date), 'MMMM d, yyyy')}
                             </div>
                           </div>
-                          {hearing.summary && (
-                            <p className="text-sm text-muted-foreground mt-2">
+                        </div>
+                        {hearing.summary && (
+                          <div className="mt-3 p-3 bg-muted/30 rounded-lg border border-border/50">
+                            <p className="text-sm text-foreground leading-relaxed">
                               {hearing.summary}
                             </p>
-                          )}
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                          </div>
+                        )}
                       </div>
-                    </CardContent>
+                      <ChevronRight className="w-6 h-6 text-muted-foreground ml-4 flex-shrink-0" />
+                    </div>
+                  </CardContent>
                   </Card>
                 ))
               )}
@@ -141,16 +143,22 @@ export const HearingSelectionModal: React.FC<HearingSelectionModalProps> = ({
           ) : (
             /* Action Selection */
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Choose Action for Hearing #{selectedHearing?.hearing_number}
-                </h3>
+              <div className="flex items-center justify-between pb-2">
+                <div>
+                  <h3 className="text-base font-bold text-foreground">
+                    Hearing #{selectedHearing?.hearing_number}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Choose an action to proceed
+                  </p>
+                </div>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={() => setSelectedHearing(null)}
+                  className="gap-2"
                 >
-                  Change Hearing
+                  ← Back
                 </Button>
               </div>
 
@@ -160,13 +168,13 @@ export const HearingSelectionModal: React.FC<HearingSelectionModalProps> = ({
                   className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary group"
                   onClick={() => handleActionSelect('directive')}
                 >
-                  <CardContent className="p-6 text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      <FileText className="w-8 h-8 text-primary" />
+                  <CardContent className="p-8 text-center">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-all group-hover:scale-110 duration-300">
+                      <FileText className="w-10 h-10 text-primary" />
                     </div>
-                    <h4 className="font-bold text-lg mb-2">Read Directive</h4>
-                    <p className="text-sm text-muted-foreground">
-                      View the complete generated directive as it was created
+                    <h4 className="font-bold text-xl mb-2 text-foreground">Read Directive</h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      View the complete generated directive with full analysis and recommendations
                     </p>
                   </CardContent>
                 </Card>
@@ -176,13 +184,13 @@ export const HearingSelectionModal: React.FC<HearingSelectionModalProps> = ({
                   className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary group"
                   onClick={() => handleActionSelect('chat')}
                 >
-                  <CardContent className="p-6 text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      <MessageSquare className="w-8 h-8 text-primary" />
+                  <CardContent className="p-8 text-center">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-all group-hover:scale-110 duration-300">
+                      <MessageSquare className="w-10 h-10 text-primary" />
                     </div>
-                    <h4 className="font-bold text-lg mb-2">Continue Chat</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Resume the conversation from where you left off
+                    <h4 className="font-bold text-xl mb-2 text-foreground">Continue Chat</h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Resume the conversation and ask follow-up questions about this hearing
                     </p>
                   </CardContent>
                 </Card>
