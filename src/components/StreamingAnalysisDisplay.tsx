@@ -127,10 +127,22 @@ export const StreamingAnalysisDisplay: React.FC<StreamingAnalysisDisplayProps> =
   }, [thinkingContent, directiveParts]);
 
   const formatMarkdown = (text: string) => {
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n\* (.*?)(?=\n|$)/g, '<li>$1</li>')
-      .replace(/\n/g, '<br>');
+    // Process markdown without adding extra <br> tags
+    let processed = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+      .replace(/\n\* (.*?)(?=\n|$)/g, '<li class="ml-4">$1</li>');
+    
+    // Split into paragraphs by double newlines
+    const paragraphs = processed.split(/\n\n+/);
+    return paragraphs
+      .map(para => {
+        const trimmed = para.trim();
+        if (!trimmed) return '';
+        // Convert single newlines to spaces within paragraphs
+        const withSpaces = trimmed.replace(/\n/g, ' ');
+        return `<p class="mb-3">${withSpaces}</p>`;
+      })
+      .join('');
   };
 
   return (
