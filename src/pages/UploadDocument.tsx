@@ -1,366 +1,326 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { RotateCcw, FileText, Clock, Upload, X, ArrowLeft, Scale } from 'lucide-react';
+import { RotateCcw, FileText, Clock, Upload, X, ArrowLeft, Scale, Plus, Briefcase } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { LegalStreamingClient, SwotMatrixData } from '@/lib/legalStreamAPI';
+import { LegalStreamingClient, SwotMatrixData, API_BASE_URL } from '@/lib/legalStreamAPI';
 import { ProfessionalLegalChat } from '@/components/ProfessionalLegalChat';
 import SegmentedProgress from '@/components/SegmentedProgress';
 import { useAuth } from '@/contexts/AuthContext';
-
-export interface AnalysisState {
-  partNumber: number;
-  thoughts: string[];
-  searchQueries: string[];
-  deliverable: string | SwotMatrixData;
-}
-
-const localParseSwotFromText = (text: string): SwotMatrixData | null => {
-  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
-  const swot: Partial<SwotMatrixData> = {};
-
-  let currentSection: 'strength' | 'weakness' | 'opportunity' | 'threat' | null = null;
-  let currentContent: string[] = [];
-
-  const saveSection = () => {
-    if (currentSection && currentContent.length > 0) {
-      swot[currentSection] = currentContent.join(' ').trim();
-      currentContent = [];
-    }
-  };
-
-  for (const line of lines) {
-    const lowerLine = line.toLowerCase();
-
-    if (lowerLine.match(/^[\*\-•]?\s*\*?\*?strength/i)) {
-      saveSection();
-      currentSection = 'strength';
-      const match = line.match(/strength[s]?:?\s*(.+)/i);
-      if (match?.[1]) currentContent.push(match[1]);
-    } else if (lowerLine.match(/^[\*\-•]?\s*\*?\*?weakness/i)) {
-      saveSection();
-      currentSection = 'weakness';
-      const match = line.match(/weakness[es]*:?\s*(.+)/i);
-      if (match?.[1]) currentContent.push(match[1]);
-    } else if (lowerLine.match(/^[\*\-•]?\s*\*?\*?opportunit/i)) {
-      saveSection();
-      currentSection = 'opportunity';
-      const match = line.match(/opportunit[y|ies]*:?\s*(.+)/i);
-      if (match?.[1]) currentContent.push(match[1]);
-    } else if (lowerLine.match(/^[\*\-•]?\s*\*?\*?threat/i)) {
-      saveSection();
-      currentSection = 'threat';
-      const match = line.match(/threat[s]*:?\s*(.+)/i);
-      if (match?.[1]) currentContent.push(match[1]);
-    } else if (currentSection) {
-      currentContent.push(line);
-    }
-  }
-
-  saveSection();
-
-  if (swot.strength && swot.weakness && swot.opportunity && swot.threat) {
-    return swot as SwotMatrixData;
-  }
-  return null;
-};
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AnalysisState } from '@/pages/Analyze';
 
 const UploadDocument = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { token, user } = useAuth();
 
+  // Form State
+  const [uploadMode, setUploadMode] = useState<'new_case' | 'existing_case'>('new_case');
+  const [existingCases, setExistingCases] = useState<any[]>([]);
+  
+  // New Case Fields
+  const [caseTitle, setCaseTitle] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [caseNumber, setCaseNumber] = useState('');
+  
+  // Shared Fields
+  const [selectedCaseId, setSelectedCaseId] = useState('');
+  const [hearingDate, setHearingDate] = useState(new Date().toISOString().split('T')[0]);
   const [caseFile, setCaseFile] = useState<File | null>(null);
-  const [caseId, setCaseId] = useState('');
-  const [hearingDate, setHearingDate] = useState('');
+  
+  // Processing State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [analysisComplete, setAnalysisComplete] = useState(false);
-  const [streamingClient, setStreamingClient] = useState<LegalStreamingClient | null>(null);
-  const [analysisParts, setAnalysisParts] = useState<AnalysisState[]>([]);
-  const [lastSubmittedFileName, setLastSubmittedFileName] = useState('');
-  const [currentPartNumber, setCurrentPartNumber] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
+  const [analysisComplete, setAnalysisComplete] = useState(false);
+  const [analysisParts, setAnalysisParts] = useState<AnalysisState[]>([]);
+  const [currentPartNumber, setCurrentPartNumber] = useState(0);
+  const [streamingClient, setStreamingClient] = useState<LegalStreamingClient | null>(null);
   const [summarizedFacts, setSummarizedFacts] = useState('');
 
+  // Fetch existing cases on mount
   useEffect(() => {
+    if (token) {
+      fetch(`${API_BASE_URL}/cases`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => setExistingCases(data.cases || []))
+      .catch(err => console.error("Failed to fetch cases", err));
+    }
     return () => streamingClient?.close();
-  }, [streamingClient]);
+  }, [token]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setCaseFile(e.target.files[0]);
-    } else {
-      setCaseFile(null);
-    }
+    if (e.target.files?.[0]) setCaseFile(e.target.files[0]);
   };
 
-  const handleRemoveFile = () => {
-    setCaseFile(null);
+  const createNewCase = async () => {
+    const res = await fetch(`${API_BASE_URL}/cases`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({
+        title: caseTitle,
+        client_name: clientName,
+        case_number: caseNumber
+      })
+    });
+    
+    if (!res.ok) throw new Error("Failed to create case");
+    const data = await res.json();
+    return data.case_id;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!caseFile || !caseId || !hearingDate) return;
+    if (!caseFile || !hearingDate) return;
 
     setLoading(true);
-    setHasStarted(false);
     setError(null);
+    setHasStarted(false);
     setAnalysisParts([]);
-    setAnalysisComplete(false);
-    setCurrentPartNumber(0);
-    setLastSubmittedFileName(caseFile.name);
-    sessionStorage.removeItem('legal_case_description'); 
-    streamingClient?.close();
-
-    const partsMap = new Map<number, AnalysisState>();
-    let updateTimer: ReturnType<typeof setTimeout> | null = null;
-    let activePartNumber = 0;
-
-    const scheduleUpdate = () => {
-      if (updateTimer) clearTimeout(updateTimer);
-      updateTimer = setTimeout(() => {
-        const sortedParts = Array.from(partsMap.values()).sort((a, b) => a.partNumber - b.partNumber);
-        setAnalysisParts(sortedParts);
-      }, 16); // ~60fps for smooth real-time streaming
-    };
-
-    const client = new LegalStreamingClient({
-      onStart: () => setHasStarted(true),
-      onConversationId: (id: string) => sessionStorage.setItem('legal_conversation_id', id),
-      onDirectivePart: (partNumber: number) => {
-        activePartNumber = partNumber;
-        setCurrentPartNumber(partNumber);
-        if (!partsMap.has(partNumber)) {
-          partsMap.set(partNumber, { partNumber, thoughts: [], searchQueries: [], deliverable: '' });
-        }
-        scheduleUpdate();
-      },
-      onThinking: (content: string) => {
-        const part = partsMap.get(activePartNumber);
-        if (part) {
-          part.thoughts.push(content);
-          scheduleUpdate();
-        }
-      },
-      onSearchQueries: (queries: string[]) => {
-        const part = partsMap.get(activePartNumber);
-        if (part) {
-          part.searchQueries.push(...queries);
-          scheduleUpdate();
-        }
-      },
-      onDeliverable: (content: string | SwotMatrixData) => {
-        const part = partsMap.get(activePartNumber);
-        if (part) {
-          if (typeof content === 'object') {
-            part.deliverable = content;
-          } else {
-            part.deliverable = (typeof part.deliverable === 'string' ? part.deliverable : '') + content + '\n';
-          }
-          scheduleUpdate();
-        }
-      },
-      onComplete: () => {
-        if (updateTimer) clearTimeout(updateTimer);
-
-        const part5 = partsMap.get(5);
-        if (part5 && typeof part5.deliverable === 'string') {
-          const swotData = localParseSwotFromText(part5.deliverable);
-          if (swotData) part5.deliverable = swotData;
-        }
-
-        const sortedParts = Array.from(partsMap.values()).sort((a, b) => a.partNumber - b.partNumber);
-        setAnalysisParts(sortedParts);
-        setAnalysisComplete(true);
-        setLoading(false);
-        setCurrentPartNumber(0);
-
-        const finalFacts = sessionStorage.getItem('legal_case_description') || lastSubmittedFileName;
-        setSummarizedFacts(finalFacts);
-
-        toast({
-          title: 'Directive Generation Complete',
-          description: 'The full legal directive is now available.',
-          action: (
-            <Button onClick={() => navigate('/chat')} className="legal-button-hover">
-              Start Chat
-            </Button>
-          ),
-        });
-      },
-      onError: (errorMsg: string) => {
-        setError(errorMsg);
-        setLoading(false);
-        setHasStarted(false);
-        toast({
-          title: 'Directive Generation Failed',
-          variant: 'destructive',
-          description: errorMsg,
-        });
-      },
-    });
-
-    setStreamingClient(client);
 
     try {
-      await client.startAnalysis(caseFile, caseId, hearingDate, '', '', token || undefined);
-    } catch {
-      setError('Failed to connect to analysis service');
+      // 1. Get Case ID (Create new or use selected)
+      let activeCaseId = selectedCaseId;
+      
+      if (uploadMode === 'new_case') {
+        if (!caseTitle) {
+          throw new Error("Case title is required");
+        }
+        activeCaseId = await createNewCase();
+      }
+
+      if (!activeCaseId) throw new Error("No Case ID selected");
+
+      // 2. Start Streaming Analysis
+      const partsMap = new Map<number, AnalysisState>();
+      let activePartNumber = 0;
+
+      const client = new LegalStreamingClient({
+        onStart: () => setHasStarted(true),
+        onConversationId: (id) => sessionStorage.setItem('legal_conversation_id', id),
+        onDirectivePart: (num) => {
+          activePartNumber = num;
+          setCurrentPartNumber(num);
+          if (!partsMap.has(num)) {
+            partsMap.set(num, { partNumber: num, thoughts: [], searchQueries: [], deliverable: '' });
+          }
+          setAnalysisParts(Array.from(partsMap.values()).sort((a, b) => a.partNumber - b.partNumber));
+        },
+        onThinking: (txt) => {
+           const part = partsMap.get(activePartNumber);
+           if(part) { part.thoughts.push(txt); setAnalysisParts([...partsMap.values()]); }
+        },
+        onSearchQueries: (q) => {
+           const part = partsMap.get(activePartNumber);
+           if(part) { part.searchQueries.push(...q); setAnalysisParts([...partsMap.values()]); }
+        },
+        onDeliverable: (content) => {
+           const part = partsMap.get(activePartNumber);
+           if(part) { 
+             if (typeof content === 'string') part.deliverable = (part.deliverable as string) + content + '\n';
+             else part.deliverable = content;
+             setAnalysisParts(Array.from(partsMap.values()).sort((a, b) => a.partNumber - b.partNumber));
+           }
+        },
+        onComplete: () => {
+          setAnalysisComplete(true);
+          setLoading(false);
+          toast({ title: 'Analysis Complete', description: 'Directive generated successfully.' });
+        },
+        onError: (msg) => {
+          setError(msg);
+          setLoading(false);
+        }
+      });
+
+      setStreamingClient(client);
+      await client.startAnalysis(caseFile, activeCaseId, hearingDate, '', '', token || undefined);
+
+    } catch (err: any) {
+      setError(err.message);
       setLoading(false);
-      setHasStarted(false);
     }
   };
 
-  const chatCaseDescription = hasStarted
-    ? (summarizedFacts || lastSubmittedFileName || 'Analyzing Document...')
-    : (summarizedFacts || lastSubmittedFileName);
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-      {/* Header */}
-      <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <Link to={user ? "/dashboard" : "/"}>
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <ArrowLeft className="w-4 h-4" />
-                  Back
-                </Button>
-              </Link>
-              <div className="flex items-center gap-2">
-                <Scale className="w-6 h-6 text-amber-600" />
-                <span className="font-bold text-lg text-slate-900 dark:text-slate-100">CaseMind</span>
-              </div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-background p-4 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-8">
+          <Link to="/dashboard">
+            <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button>
+          </Link>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Scale className="w-6 h-6 text-primary" />
+            New Legal Analysis
+          </h1>
         </div>
-      </header>
 
-      <div className="container mx-auto px-4 py-8">
+        {!hasStarted ? (
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="grid md:grid-cols-2 gap-8">
+              
+              {/* Left Column: Case Selection */}
+              <div className="space-y-6">
+                <div className="bg-card p-6 rounded-xl border shadow-sm">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-primary" />
+                    Case Details
+                  </h3>
+                  
+                  <RadioGroup value={uploadMode} onValueChange={(v: any) => setUploadMode(v)} className="mb-6">
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="new_case" id="new" />
+                      <Label htmlFor="new">Create New Case</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="existing_case" id="existing" disabled={existingCases.length === 0} />
+                      <Label htmlFor="existing">Add to Existing Case</Label>
+                    </div>
+                  </RadioGroup>
 
-        <div className="max-w-4xl mx-auto">
-          {!hasStarted && !loading && analysisParts.length === 0 && (
-            <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 space-y-4">
-              <h2 className="text-xl font-semibold">Upload Case Document for Analysis</h2>
-              <p className="text-sm text-muted-foreground">
-                Upload your legal document (PDF, DOCX, TXT, JSON) to generate the 11-part War Game Directive.
-              </p>
-
-              <div>
-                <label htmlFor="case-id-upload" className="block text-sm font-semibold mb-2">
-                  Case ID <span className="text-destructive">*</span>
-                </label>
-                <input
-                  id="case-id-upload"
-                  type="text"
-                  placeholder="Enter case ID from dashboard"
-                  value={caseId}
-                  onChange={e => setCaseId(e.target.value)}
-                  disabled={loading}
-                  className="w-full px-3 py-2 border rounded-md"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="hearing-date-upload" className="block text-sm font-semibold mb-2">
-                  Hearing Date <span className="text-destructive">*</span>
-                </label>
-                <input
-                  id="hearing-date-upload"
-                  type="date"
-                  value={hearingDate}
-                  onChange={e => setHearingDate(e.target.value)}
-                  disabled={loading}
-                  className="w-full px-3 py-2 border rounded-md"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center space-x-4">
-                <input
-                  id="case-file-input"
-                  type="file"
-                  onChange={handleFileChange}
-                  accept=".txt,.json,.pdf"
-                  className="hidden"
-                />
-                <label
-                  htmlFor="case-file-input"
-                  className="cursor-pointer flex items-center justify-center p-4 border-2 border-dashed border-primary/50 text-primary rounded-lg hover:border-primary transition-colors flex-grow"
-                >
-                  <Upload className="w-5 h-5 mr-2" />
-                  {caseFile ? `File Selected: ${caseFile.name}` : 'Click to select file (PDF, TXT, JSON)'}
-                </label>
-                {caseFile && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleRemoveFile}
-                    title="Remove file"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between pt-2">
-                <span className="text-sm text-muted-foreground">
-                  {caseFile ? `Size: ${(caseFile.size / 1024).toFixed(2)} KB` : 'No file selected'}
-                </span>
-                <Button type="submit" disabled={!caseFile || !caseId || !hearingDate || loading}>
-                  {loading ? (
-                    <>
-                      <Clock className="w-4 h-4 mr-2 animate-spin" />
-                      Uploading & Analyzing...
-                    </>
+                  {uploadMode === 'new_case' ? (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                      <div className="space-y-2">
+                        <Label>Case Title *</Label>
+                        <Input 
+                          placeholder="e.g., State vs. John Doe" 
+                          value={caseTitle}
+                          onChange={e => setCaseTitle(e.target.value)}
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Client Name</Label>
+                        <Input 
+                          placeholder="Client Full Name" 
+                          value={clientName}
+                          onChange={e => setClientName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Case Number (Optional)</Label>
+                        <Input 
+                          placeholder="Court Case No." 
+                          value={caseNumber}
+                          onChange={e => setCaseNumber(e.target.value)}
+                        />
+                      </div>
+                    </div>
                   ) : (
-                    <>
-                      <FileText className="w-4 h-4 mr-2" />
-                      Generate Directive
-                    </>
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                      <Label>Select Case *</Label>
+                      <Select value={selectedCaseId} onValueChange={setSelectedCaseId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a case..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {existingCases.map((c: any) => (
+                            <SelectItem key={c._id} value={c._id}>
+                              {c.title || c.client_name || "Untitled"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
+                </div>
+              </div>
+
+              {/* Right Column: Upload & Hearing Info */}
+              <div className="space-y-6">
+                <div className="bg-card p-6 rounded-xl border shadow-sm">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Upload className="w-5 h-5 text-primary" />
+                    Hearing & Documents
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Hearing Date *</Label>
+                      <Input 
+                        type="date" 
+                        value={hearingDate}
+                        onChange={e => setHearingDate(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Upload Document (PDF/TXT) *</Label>
+                      <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${caseFile ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}>
+                        <input 
+                          type="file" 
+                          id="file" 
+                          className="hidden" 
+                          onChange={handleFileChange}
+                          accept=".pdf,.txt,.json"
+                        />
+                        <label htmlFor="file" className="cursor-pointer block">
+                          {caseFile ? (
+                            <div className="flex items-center justify-center gap-2 text-primary font-medium">
+                              <FileText className="w-5 h-5" />
+                              {caseFile.name}
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground">
+                              <Upload className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm">Click to upload case files</p>
+                            </div>
+                          )}
+                        </label>
+                      </div>
+                      {caseFile && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setCaseFile(null)} className="w-full text-destructive">
+                          Remove File
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <Button 
+                  type="submit" 
+                  size="lg" 
+                  className="w-full" 
+                  disabled={loading || !caseFile || (!caseTitle && uploadMode === 'new_case') || (!selectedCaseId && uploadMode === 'existing_case')}
+                >
+                  {loading ? <Clock className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+                  {loading ? 'Generating Analysis...' : 'Generate Directive'}
                 </Button>
               </div>
-            </form>
-          )}
-
-          {(hasStarted || loading || analysisParts.length > 0) && (
-            <div className="space-y-4">
-              <SegmentedProgress currentPart={currentPartNumber} totalParts={11} isComplete={analysisComplete} />
-              <ProfessionalLegalChat
-                analysisParts={analysisParts}
-                isStreaming={loading}
-                isComplete={analysisComplete}
-                caseDescription={chatCaseDescription}
-                currentPartNumber={currentPartNumber}
-              />
             </div>
-          )}
-
-          {error && (
-            <div className="mt-4 p-4 border border-destructive/20 rounded-lg bg-destructive/5 text-destructive">
-              <p className="font-semibold mb-2">Error</p>
-              <p className="text-sm">{error}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setError(null);
-                  setHasStarted(false);
-                  setCaseFile(null);
-                }}
-                className="mt-2"
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Try Again
-              </Button>
-            </div>
-          )}
-        </div>
+          </form>
+        ) : (
+          // Analysis View
+          <div className="space-y-6 animate-in fade-in duration-500">
+            <SegmentedProgress currentPart={currentPartNumber} totalParts={11} isComplete={analysisComplete} />
+            <ProfessionalLegalChat
+              analysisParts={analysisParts}
+              isStreaming={loading}
+              isComplete={analysisComplete}
+              caseDescription={caseFile?.name || "Document Analysis"}
+              currentPartNumber={currentPartNumber}
+            />
+          </div>
+        )}
+        
+        {error && (
+          <div className="mt-4 p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 flex items-center gap-2">
+            <RotateCcw className="w-4 h-4" />
+            {error}
+          </div>
+        )}
       </div>
     </div>
   );
