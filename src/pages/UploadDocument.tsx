@@ -269,8 +269,8 @@ const UploadDocument = () => {
                         <label htmlFor="file" className="cursor-pointer block">
                           {caseFile ? (
                             <div className="flex items-center justify-center gap-2 text-primary font-medium">
-                              <FileText className="w-5 h-5" />
-                              {caseFile.name}
+                              <FileText className="w-5 h-5 flex-shrink-0" />
+                              <span className="break-all text-sm">{caseFile.name}</span>
                             </div>
                           ) : (
                             <div className="text-muted-foreground">
