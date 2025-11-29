@@ -71,6 +71,8 @@ const UploadDocument = () => {
   const { token, user } = useAuth();
 
   const [caseFile, setCaseFile] = useState<File | null>(null);
+  const [caseId, setCaseId] = useState('');
+  const [hearingDate, setHearingDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analysisComplete, setAnalysisComplete] = useState(false);
@@ -99,7 +101,7 @@ const UploadDocument = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!caseFile) return;
+    if (!caseFile || !caseId || !hearingDate) return;
 
     setLoading(true);
     setHasStarted(false);
@@ -202,7 +204,7 @@ const UploadDocument = () => {
     setStreamingClient(client);
 
     try {
-      await client.startAnalysis(caseFile, token || undefined);
+      await client.startAnalysis(caseFile, caseId, hearingDate, token || undefined);
     } catch {
       setError('Failed to connect to analysis service');
       setLoading(false);
@@ -246,6 +248,37 @@ const UploadDocument = () => {
                 Upload your legal document (PDF, DOCX, TXT, JSON) to generate the 11-part War Game Directive.
               </p>
 
+              <div>
+                <label htmlFor="case-id-upload" className="block text-sm font-semibold mb-2">
+                  Case ID <span className="text-destructive">*</span>
+                </label>
+                <input
+                  id="case-id-upload"
+                  type="text"
+                  placeholder="Enter case ID from dashboard"
+                  value={caseId}
+                  onChange={e => setCaseId(e.target.value)}
+                  disabled={loading}
+                  className="w-full px-3 py-2 border rounded-md"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="hearing-date-upload" className="block text-sm font-semibold mb-2">
+                  Hearing Date <span className="text-destructive">*</span>
+                </label>
+                <input
+                  id="hearing-date-upload"
+                  type="date"
+                  value={hearingDate}
+                  onChange={e => setHearingDate(e.target.value)}
+                  disabled={loading}
+                  className="w-full px-3 py-2 border rounded-md"
+                  required
+                />
+              </div>
+
               <div className="flex items-center space-x-4">
                 <input
                   id="case-file-input"
@@ -278,7 +311,7 @@ const UploadDocument = () => {
                 <span className="text-sm text-muted-foreground">
                   {caseFile ? `Size: ${(caseFile.size / 1024).toFixed(2)} KB` : 'No file selected'}
                 </span>
-                <Button type="submit" disabled={!caseFile || loading}>
+                <Button type="submit" disabled={!caseFile || !caseId || !hearingDate || loading}>
                   {loading ? (
                     <>
                       <Clock className="w-4 h-4 mr-2 animate-spin" />

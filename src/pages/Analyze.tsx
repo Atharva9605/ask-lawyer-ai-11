@@ -77,6 +77,8 @@ const Analyze = () => {
   const { token, user } = useAuth();
 
   const [caseDescription, setCaseDescription] = useState('');
+  const [caseId, setCaseId] = useState('');
+  const [hearingDate, setHearingDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analysisComplete, setAnalysisComplete] = useState(false);
@@ -94,7 +96,7 @@ const Analyze = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (caseDescription.trim().length < 50) return;
+    if (caseDescription.trim().length < 50 || !caseId || !hearingDate) return;
 
     setLoading(true);
     setHasStarted(false);
@@ -217,7 +219,7 @@ const Analyze = () => {
     const virtualFile = new File([textBlob], "case_description.txt", { type: 'text/plain' });
     
     try {
-      await client.startAnalysis(virtualFile, token || undefined);
+      await client.startAnalysis(virtualFile, caseId, hearingDate, token || undefined);
 
     } catch (err) {
       console.error('Failed to start analysis:', err);
@@ -260,23 +262,62 @@ const Analyze = () => {
               onSubmit={handleSubmit}
               className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 space-y-4"
             >
-              <label htmlFor="case-description" className="block text-lg font-semibold">
-                Describe Your Legal Case
-              </label>
-              <Textarea
-                id="case-description"
-                placeholder="Provide all relevant details (minimum 50 characters)..."
-                value={caseDescription}
-                onChange={e => setCaseDescription(e.target.value)}
-                rows={8}
-                disabled={loading}
-                className="w-full"
-              />
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="case-id" className="block text-sm font-semibold mb-2">
+                    Case ID <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    id="case-id"
+                    type="text"
+                    placeholder="Enter case ID from dashboard"
+                    value={caseId}
+                    onChange={e => setCaseId(e.target.value)}
+                    disabled={loading}
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="hearing-date" className="block text-sm font-semibold mb-2">
+                    Hearing Date <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    id="hearing-date"
+                    type="date"
+                    value={hearingDate}
+                    onChange={e => setHearingDate(e.target.value)}
+                    disabled={loading}
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="case-description" className="block text-sm font-semibold mb-2">
+                    Describe Your Legal Case
+                  </label>
+                  <Textarea
+                    id="case-description"
+                    placeholder="Provide all relevant details (minimum 50 characters)..."
+                    value={caseDescription}
+                    onChange={e => setCaseDescription(e.target.value)}
+                    rows={8}
+                    disabled={loading}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
                   {caseDescription.length} / 50 characters minimum
                 </span>
-                <Button type="submit" disabled={caseDescription.trim().length < 50 || loading}>
+                <Button 
+                  type="submit" 
+                  disabled={caseDescription.trim().length < 50 || !caseId || !hearingDate || loading}
+                >
                   {loading ? (
                     <>
                       <Clock className="w-4 h-4 mr-2 animate-spin" />

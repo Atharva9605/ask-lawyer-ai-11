@@ -49,9 +49,11 @@ export class LegalStreamingClient {
   /**
    * Initiates the legal analysis by sending the case facts (TEXT OR FILE) to the backend.
    * @param input The detailed description of the legal case (string) OR the file to upload (File).
+   * @param caseId The ID of the case (required by backend)
+   * @param hearingDate The hearing date in YYYY-MM-DD format (required by backend)
    * @param token Optional JWT token for authenticated requests
    */
-  async startAnalysis(input: string | File, token?: string) {
+  async startAnalysis(input: string | File, caseId: string, hearingDate: string, token?: string) {
     console.log('🚀 Starting analysis...');
     this.close();
     this.abortController = new AbortController();
@@ -63,6 +65,12 @@ export class LegalStreamingClient {
 
     // Always use FormData for file upload
     const formData = new FormData();
+    
+    // Add REQUIRED fields first
+    formData.append('case_id', caseId);
+    formData.append('hearing_date', hearingDate);
+    
+    // Add file (optional but recommended)
     if (input instanceof File) {
       console.log('📁 Sending file upload...');
       formData.append('case_file', input);
@@ -74,7 +82,7 @@ export class LegalStreamingClient {
       formData.append('case_file', textFile);
     }
     
-    // Add optional case_description field
+    // Add optional fields
     formData.append('case_description', '');
     formData.append('first_instruction', '');
     
