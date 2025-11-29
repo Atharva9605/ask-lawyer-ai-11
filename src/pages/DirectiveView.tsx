@@ -6,7 +6,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Download, MessageSquare, Scale, FileText, Calendar } from 'lucide-react';
+import { ArrowLeft, Download, MessageSquare, Scale, FileText, Calendar, Printer } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { format } from 'date-fns';
 import { ProfessionalLegalChat } from '@/components/ProfessionalLegalChat';
 import { CaseFactsSummary } from '@/components/CaseFactsSummary';
@@ -144,6 +146,7 @@ const DirectiveView: React.FC = () => {
   const [directive, setDirective] = useState<DirectiveData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [analysisParts, setAnalysisParts] = useState<AnalysisState[]>([]);
+  const contentRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     console.log('DirectiveView mounted', { token: !!token, user: !!user, hearingId });
@@ -236,6 +239,54 @@ const DirectiveView: React.FC = () => {
     navigate('/chat');
   };
 
+  const handlePrintPDF = async () => {
+    if (!contentRef.current) return;
+
+    try {
+      toast({
+        title: 'Generating PDF',
+        description: 'Please wait...',
+      });
+
+      const canvas = await html2canvas(contentRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+      });
+
+      const imgWidth = 210; // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png');
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= 297;
+      
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= 297;
+      }
+      
+      pdf.save(`directive-${directive?.hearing_id || 'document'}.pdf`);
+
+      toast({
+        title: 'PDF Downloaded',
+        description: 'Directive exported successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Export Failed',
+        description: 'Failed to generate PDF',
+        variant: 'destructive',
+      });
+    }
+  };
+
   console.log('Rendering DirectiveView', { isLoading, hasDirective: !!directive });
 
   return (
@@ -273,6 +324,15 @@ const DirectiveView: React.FC = () => {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={handlePrintPDF}
+                  className="gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  Export PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleDownload}
                   className="gap-2"
                 >
@@ -294,7 +354,7 @@ const DirectiveView: React.FC = () => {
       </header>
 
       {/* Content */}
-      <main className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
+      <main ref={contentRef} className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
         {isLoading ? (
           <Card>
             <CardContent className="p-6 space-y-4">

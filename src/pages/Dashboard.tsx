@@ -6,7 +6,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { FileText, Calendar, Loader2, Scale, Plus, ChevronDown, Clock, Edit, Eye } from 'lucide-react';
+import { FileText, Calendar, Loader2, Scale, Plus, ChevronDown, Clock, Edit, Eye, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { format, differenceInDays } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import { HearingSelectionModal } from '@/components/HearingSelectionModal';
@@ -61,6 +71,8 @@ const Dashboard: React.FC = () => {
   const [showHearingModal, setShowHearingModal] = useState(false);
   const [caseHearings, setCaseHearings] = useState<any[]>([]);
   const [isHearingsLoading, setIsHearingsLoading] = useState(false);
+  const [caseToDelete, setCaseToDelete] = useState<Case | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!token || !user) {
@@ -167,6 +179,43 @@ const Dashboard: React.FC = () => {
       return `in ${days} days`;
     } catch {
       return null;
+    }
+  };
+
+  const handleDeleteCase = async () => {
+    if (!caseToDelete?._id || !token) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/cases/${caseToDelete._id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete case');
+      }
+
+      setCases((prev) => prev.filter((c) => c._id !== caseToDelete._id));
+      
+      toast({
+        title: 'Case Deleted',
+        description: 'The case has been successfully deleted',
+      });
+    } catch (error) {
+      toast({
+        title: 'Delete Failed',
+        description: error instanceof Error ? error.message : 'Failed to delete case',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setCaseToDelete(null);
     }
   };
 
@@ -352,6 +401,17 @@ const Dashboard: React.FC = () => {
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-destructive hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCaseToDelete(caseItem);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
 
                   {/* Created Date Footer */}
@@ -385,6 +445,28 @@ const Dashboard: React.FC = () => {
           isLoading={isHearingsLoading}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!caseToDelete} onOpenChange={(open) => !open && setCaseToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Case</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {caseToDelete?.client_name || caseToDelete?.file_name || 'this case'}? This action cannot be undone and will permanently remove all associated data including hearings and directives.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCase}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete Case'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
