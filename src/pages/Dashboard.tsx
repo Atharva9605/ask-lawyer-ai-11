@@ -378,7 +378,7 @@ const Dashboard: React.FC = () => {
                   )}
 
                   {/* Footer Actions */}
-                  <div className="p-4 flex items-center gap-2">
+                  <div className="p-4 flex items-center gap-2 border-t">
                     <Button
                       onClick={() => handleCaseClick(caseItem)}
                       variant="default"
@@ -392,25 +392,28 @@ const Dashboard: React.FC = () => {
                       variant="outline"
                       size="sm"
                       className="gap-2"
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation();
                         toast({
                           title: 'Edit coming soon',
                           description: 'Case editing will be available in a future update.',
-                        })
-                      }
+                        });
+                      }}
                     >
                       <Edit className="w-4 h-4" />
+                      Edit
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-2 text-destructive hover:text-destructive"
+                      className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
                       onClick={(e) => {
                         e.stopPropagation();
                         setCaseToDelete(caseItem);
                       }}
                     >
                       <Trash2 className="w-4 h-4" />
+                      Delete
                     </Button>
                   </div>
 
