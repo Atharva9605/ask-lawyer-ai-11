@@ -228,7 +228,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({
         }
         // Keep single newlines as spaces within paragraphs - no <br> tags
         const withSpaces = trimmed.replace(/\n/g, ' ');
-        return `<p class="mb-4">${withSpaces}</p>`;
+        return `<p class="mb-2">${withSpaces}</p>`;
       })
       .filter(p => p)
       .join('');
@@ -297,9 +297,9 @@ export const MessageContent: React.FC<MessageContentProps> = ({
 
         .legal-bullet-list,
         .legal-numbered-list {
-          margin: 0.5rem 0;
+          margin: 0.25rem 0;
           padding-left: 1.25rem;
-          line-height: 1.7;
+          line-height: 1.6;
         }
 
         .legal-numbered-list {
@@ -331,7 +331,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({
         }
 
         .legal-list-item {
-          margin: 0.375rem 0;
+          margin: 0.2rem 0;
           padding-left: 0.25rem;
           color: hsl(var(--foreground));
         }

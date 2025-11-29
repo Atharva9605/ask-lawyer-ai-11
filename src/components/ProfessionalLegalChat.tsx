@@ -256,13 +256,13 @@ export const ProfessionalLegalChat: React.FC<ProfessionalLegalChatProps> = ({
                           <div className="p-5 space-y-3">
                             {part.thoughts.map((thought, idx) => (
                               <div key={idx} className="relative pl-4 border-l-2 border-blue-200 dark:border-blue-800">
-                                <div className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg">
-                                  {thought.split('\n\n').map((para, pIdx) => (
-                                    <p key={pIdx} className={pIdx > 0 ? 'mt-3' : ''}>
-                                      {para}
-                                    </p>
-                                  ))}
-                                </div>
+                                 <div className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg">
+                                   {thought.split('\n\n').map((para, pIdx) => (
+                                     <p key={pIdx} className={pIdx > 0 ? 'mt-2' : ''}>
+                                       {para}
+                                     </p>
+                                   ))}
+                                 </div>
                               </div>
                             ))}
                           </div>

@@ -141,7 +141,7 @@ export const StreamingAnalysisDisplay: React.FC<StreamingAnalysisDisplayProps> =
         if (!trimmed) return '';
         // Convert single newlines to spaces within paragraphs
         const withSpaces = trimmed.replace(/\n/g, ' ');
-        return `<p class="mb-3">${withSpaces}</p>`;
+        return `<p class="mb-2">${withSpaces}</p>`;
       })
       .join('');
   };
