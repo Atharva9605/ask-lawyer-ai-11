@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import UploadDocument from "./pages/UploadDocument";
 import Analyze from "./pages/Analyze";
 import Chat from "./pages/Chat";
+import DirectiveView from "./pages/DirectiveView";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
               <Route path="/upload" element={<UploadDocument />} />
               <Route path="/analyze" element={<Analyze />} />
               <Route path="/chat" element={<Chat />} />
+              <Route path="/directive" element={<DirectiveView />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>

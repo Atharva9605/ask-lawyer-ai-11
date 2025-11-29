@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { FileText, Calendar, Loader2, Scale, Plus, ChevronDown, Clock, Edit, Eye
 import { format, differenceInDays } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import { CaseTimeline } from '@/components/CaseTimeline';
+import { HearingSelectionModal } from '@/components/HearingSelectionModal';
 
 interface Hearing {
   date: string;
@@ -55,6 +56,8 @@ const Dashboard: React.FC = () => {
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
+  const [selectedCase, setSelectedCase] = useState<Case | null>(null);
+  const [showHearingModal, setShowHearingModal] = useState(false);
 
   useEffect(() => {
     if (!token || !user) {
@@ -95,12 +98,31 @@ const Dashboard: React.FC = () => {
 
   const handleCaseClick = (caseItem: Case) => {
     if (!caseItem._id) return;
-    
-    sessionStorage.setItem('legal_conversation_id', caseItem._id);
-    if (caseItem.case_facts) {
-      sessionStorage.setItem('legal_case_description', caseItem.case_facts);
+    setSelectedCase(caseItem);
+    setShowHearingModal(true);
+  };
+
+  const handleHearingSelection = (hearingNumber: number, action: 'directive' | 'chat') => {
+    if (!selectedCase?._id) return;
+
+    sessionStorage.setItem('legal_conversation_id', selectedCase._id);
+    if (selectedCase.case_facts) {
+      sessionStorage.setItem('legal_case_description', selectedCase.case_facts);
     }
-    navigate('/chat');
+    sessionStorage.setItem('selected_hearing_number', hearingNumber.toString());
+
+    setShowHearingModal(false);
+
+    if (action === 'directive') {
+      navigate(`/directive?case_id=${selectedCase._id}&hearing=${hearingNumber}`);
+    } else {
+      navigate('/chat');
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowHearingModal(false);
+    setSelectedCase(null);
   };
 
   const toggleTimeline = (caseId: string | undefined) => {
@@ -322,6 +344,22 @@ const Dashboard: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* Hearing Selection Modal */}
+      {selectedCase && (
+        <HearingSelectionModal
+          open={showHearingModal}
+          onClose={handleCloseModal}
+          hearings={(selectedCase.hearing_history || []).map((h, idx) => ({
+            hearing_number: idx + 1,
+            date: h.date,
+            outcome: h.outcome,
+            summary: h.summary,
+          }))}
+          caseNumber={selectedCase.case_number || 'CV-2025-' + selectedCase._id?.slice(-3).toUpperCase()}
+          onSelectHearing={handleHearingSelection}
+        />
+      )}
     </div>
   );
 };
