@@ -125,13 +125,7 @@ export const HearingSelectionModal: React.FC<HearingSelectionModalProps> = ({
                             </div>
                           </div>
                         </div>
-                        {hearing.summary && (
-                          <div className="mt-3 p-3 bg-muted/30 rounded-lg border border-border/50 hidden">
-                            <p className="text-sm text-foreground leading-relaxed">
-                              {hearing.summary}
-                            </p>
-                          </div>
-                        )}
+                        {hearing.summary && null}
                       </div>
                       <ChevronRight className="w-6 h-6 text-muted-foreground ml-4 flex-shrink-0" />
                     </div>
