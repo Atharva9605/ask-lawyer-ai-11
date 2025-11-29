@@ -83,6 +83,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({
 
     // Normalize whitespace: trim lines and collapse multiple newlines
     let processed = text
+      .replace(/<br\s*\/?>(\s*)/gi, '\n') // Convert HTML <br> tags to newlines
       .split('\n')
       .map(line => line.trim())
       .join('\n')
