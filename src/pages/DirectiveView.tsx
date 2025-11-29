@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Download, MessageSquare, Scale, FileText, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { ProfessionalLegalChat } from '@/components/ProfessionalLegalChat';
+import { CaseFactsSummary } from '@/components/CaseFactsSummary';
 import type { AnalysisState } from '@/pages/Analyze';
 import { API_BASE_URL, type SwotMatrixData } from '../lib/legalStreamAPI';
 
@@ -75,14 +76,19 @@ const parseSwotFromText = (text: string): SwotMatrixData | null => {
 };
 
 const parseDirectiveToAnalysisParts = (fullDirective: string): AnalysisState[] => {
+  console.log('Starting to parse directive, length:', fullDirective.length);
   const parts: AnalysisState[] = [];
 
-  const partRegex = /=== PART (\d+) ===([\s\S]*?)(?=== PART \d+ ===|$)/g;
+  const partRegex = /=== PART (\d+) ===([\s\S]*?)(?=\n=== PART \d+ ===|$)/g;
   let match: RegExpExecArray | null;
+  let matchCount = 0;
 
   while ((match = partRegex.exec(fullDirective)) !== null) {
+    matchCount++;
     const partNumber = parseInt(match[1]);
     const content = match[2];
+    
+    console.log(`Found Part ${partNumber}, content length: ${content.length}`);
 
     const thoughts: string[] = [];
     const thoughtsRegex = /\[THOUGHTS-BEGIN\]([\s\S]*?)\[THOUGHTS-END\]/g;
@@ -119,7 +125,11 @@ const parseDirectiveToAnalysisParts = (fullDirective: string): AnalysisState[] =
     });
   }
 
-  return parts.sort((a, b) => a.partNumber - b.partNumber);
+  console.log(`Total parts parsed: ${matchCount}, parts array length: ${parts.length}`);
+  const sortedParts = parts.sort((a, b) => a.partNumber - b.partNumber);
+  console.log('Part numbers in order:', sortedParts.map(p => p.partNumber));
+  
+  return sortedParts;
 };
 
 const DirectiveView: React.FC = () => {
@@ -325,19 +335,13 @@ const DirectiveView: React.FC = () => {
                   </Badge>
                 </div>
 
-                {/* Case Facts Summary */}
-                {directive.case_facts && (
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Case Facts Summary
-                    </h3>
-                    <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                      {directive.case_facts}
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
+
+            {/* Case Facts Summary */}
+            {directive.case_facts && (
+              <CaseFactsSummary caseFacts={directive.case_facts} />
+            )}
 
             {/* Directive content - match Analyze page formatting if possible */}
             {analysisParts.length > 0 ? (
@@ -345,7 +349,7 @@ const DirectiveView: React.FC = () => {
                 analysisParts={analysisParts}
                 isStreaming={false}
                 isComplete={true}
-                caseDescription={directive.case_facts}
+                caseDescription={undefined}
                 currentPartNumber={0}
               />
             ) : (
