@@ -204,7 +204,7 @@ const UploadDocument = () => {
     setStreamingClient(client);
 
     try {
-      await client.startAnalysis(caseFile, caseId, hearingDate, token || undefined);
+      await client.startAnalysis(caseFile, caseId, hearingDate, '', '', token || undefined);
     } catch {
       setError('Failed to connect to analysis service');
       setLoading(false);

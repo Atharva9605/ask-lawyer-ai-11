@@ -51,54 +51,66 @@ export class LegalStreamingClient {
    * @param input The detailed description of the legal case (string) OR the file to upload (File).
    * @param caseId The ID of the case (required by backend)
    * @param hearingDate The hearing date in YYYY-MM-DD format (required by backend)
+   * @param caseDescription Optional case description text
+   * @param firstInstruction Optional specific instruction for AI
    * @param token Optional JWT token for authenticated requests
    */
-  async startAnalysis(input: string | File, caseId: string, hearingDate: string, token?: string) {
-    console.log('🚀 Starting analysis...');
+  async startAnalysis(
+    input: string | File, 
+    caseId: string, 
+    hearingDate: string, 
+    caseDescription?: string,
+    firstInstruction?: string,
+    token?: string
+  ) {
+    console.log('🚀 Starting analysis...', { caseId, hearingDate });
+    
+    // Validate required fields
+    if (!caseId || !hearingDate) {
+      this.callbacks.onError?.('Case ID and Hearing Date are required');
+      return;
+    }
+    
     this.close();
     this.abortController = new AbortController();
     this.callbacks.onStart?.();
 
     const url = `${API_BASE_URL}/generate_directive`;
-    let body: FormData;
-    let headers: HeadersInit = {};
-
-    // Always use FormData for file upload
     const formData = new FormData();
     
-    // Add REQUIRED fields first
+    // Add REQUIRED fields first - these must be present
     formData.append('case_id', caseId);
     formData.append('hearing_date', hearingDate);
+    console.log('✅ Required fields added:', { case_id: caseId, hearing_date: hearingDate });
     
-    // Add file (optional but recommended)
+    // Add optional case_file only if input is provided
     if (input instanceof File) {
       console.log('📁 Sending file upload...');
       formData.append('case_file', input);
-    } else {
-      // Convert string to file
+    } else if (input && input.trim()) {
+      // Only convert to file if there's actual text content
       console.log('📝 Converting text to file...');
       const textBlob = new Blob([input], { type: 'text/plain' });
       const textFile = new File([textBlob], 'case_description.txt', { type: 'text/plain' });
       formData.append('case_file', textFile);
     }
     
-    // Add optional fields
-    formData.append('case_description', '');
-    formData.append('first_instruction', '');
-    
-    body = formData;
+    // Add optional fields (empty strings if not provided)
+    formData.append('case_description', caseDescription || '');
+    formData.append('first_instruction', firstInstruction || '');
 
-    // Add auth token if provided (in headers, not FormData)
+    // Prepare headers - do NOT set Content-Type, browser handles it
+    const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
     try {
-      console.log('📡 Sending POST request...');
+      console.log('📡 Sending POST request to:', url);
       const response = await fetch(url, {
         method: 'POST',
-        headers: headers,
-        body: body,
+        headers: headers, // No Content-Type - browser sets it with boundary
+        body: formData,
         signal: this.abortController.signal,
       });
 
