@@ -1,22 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Download, MessageSquare, Scale, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, Download, MessageSquare, Scale, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { API_BASE_URL } from '../lib/legalStreamAPI';
 
 interface DirectiveData {
-  case_id: string;
-  hearing_number: number;
-  case_number: string;
-  directive_content: string;
-  generated_at: string;
-  hearing_date: string;
+  hearing_id: string;
+  full_directive: string;
+  chat_history: string[];
+  case_facts?: string;
 }
 
 const DirectiveView: React.FC = () => {
@@ -25,8 +24,7 @@ const DirectiveView: React.FC = () => {
   const { token, user } = useAuth();
   const { toast } = useToast();
 
-  const caseId = searchParams.get('case_id');
-  const hearingNumber = searchParams.get('hearing');
+  const hearingId = searchParams.get('hearing_id');
 
   const [directive, setDirective] = useState<DirectiveData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,10 +35,10 @@ const DirectiveView: React.FC = () => {
       return;
     }
 
-    if (!caseId || !hearingNumber) {
+    if (!hearingId) {
       toast({
         title: 'Error',
-        description: 'Missing case or hearing information',
+        description: 'Missing hearing information',
         variant: 'destructive',
       });
       navigate('/dashboard');
@@ -48,15 +46,14 @@ const DirectiveView: React.FC = () => {
     }
 
     fetchDirective();
-  }, [token, user, caseId, hearingNumber]);
+  }, [token, user, hearingId]);
 
   const fetchDirective = async () => {
     try {
       setIsLoading(true);
-      
-      // TODO: Replace with your backend API endpoint
+
       const response = await fetch(
-        `https://legal-backend-api-chatbot.onrender.com/directive?case_id=${caseId}&hearing=${hearingNumber}`,
+        `${API_BASE_URL}/hearings/${hearingId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -84,11 +81,11 @@ const DirectiveView: React.FC = () => {
   const handleDownload = () => {
     if (!directive) return;
 
-    const blob = new Blob([directive.directive_content], { type: 'text/markdown' });
+    const blob = new Blob([directive.full_directive], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `directive-${directive.case_number}-hearing-${directive.hearing_number}.md`;
+    a.download = `directive-${directive.hearing_id}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -101,9 +98,11 @@ const DirectiveView: React.FC = () => {
   };
 
   const handleContinueChat = () => {
-    if (!caseId) return;
-    sessionStorage.setItem('legal_conversation_id', caseId);
-    sessionStorage.setItem('selected_hearing_number', hearingNumber || '');
+    if (!hearingId) return;
+    sessionStorage.setItem('legal_conversation_id', hearingId);
+    if (directive?.case_facts) {
+      sessionStorage.setItem('legal_case_description', directive.case_facts);
+    }
     navigate('/chat');
   };
 
@@ -131,7 +130,7 @@ const DirectiveView: React.FC = () => {
                   <h1 className="text-lg font-bold text-foreground">Directive View</h1>
                   {directive && (
                     <p className="text-xs text-muted-foreground">
-                      {directive.case_number} - Hearing #{directive.hearing_number}
+                      Hearing ID: {directive.hearing_id}
                     </p>
                   )}
                 </div>
@@ -184,26 +183,22 @@ const DirectiveView: React.FC = () => {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <CardTitle className="text-2xl mb-2">
-                    War Game Directive - Hearing #{directive.hearing_number}
+                    War Game Directive
                   </CardTitle>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      <span>{directive.case_number}</span>
+                  {directive?.case_facts && (
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      <span className="font-semibold">Case Facts Summary:</span>{' '}
+                      {directive.case_facts}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      <span>Generated: {new Date(directive.generated_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[calc(100vh-16rem)]">
-                <div className="p-8 prose prose-slate dark:prose-invert max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {directive.directive_content}
+              <CardContent className="p-0">
+                <ScrollArea className="h-[calc(100vh-16rem)]">
+                  <div className="p-8 prose prose-slate dark:prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {directive.full_directive}
                   </ReactMarkdown>
                 </div>
               </ScrollArea>

@@ -9,8 +9,9 @@ import { useToast } from '@/hooks/use-toast';
 import { FileText, Calendar, Loader2, Scale, Plus, ChevronDown, Clock, Edit, Eye } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
-import { CaseTimeline } from '@/components/CaseTimeline';
 import { HearingSelectionModal } from '@/components/HearingSelectionModal';
+import { CaseTimeline } from '@/components/CaseTimeline';
+import { API_BASE_URL } from '../lib/legalStreamAPI';
 
 interface Hearing {
   date: string;
@@ -58,6 +59,8 @@ const Dashboard: React.FC = () => {
   const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
   const [showHearingModal, setShowHearingModal] = useState(false);
+  const [caseHearings, setCaseHearings] = useState<any[]>([]);
+  const [isHearingsLoading, setIsHearingsLoading] = useState(false);
 
   useEffect(() => {
     if (!token || !user) {
@@ -68,7 +71,7 @@ const Dashboard: React.FC = () => {
     const fetchCases = async () => {
       try {
         const response = await fetch(
-          'https://legal-backend-api-chatbot.onrender.com/cases',
+          `${API_BASE_URL}/cases`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -96,25 +99,52 @@ const Dashboard: React.FC = () => {
     fetchCases();
   }, [token, user, navigate, toast]);
 
-  const handleCaseClick = (caseItem: Case) => {
+  const handleCaseClick = async (caseItem: Case) => {
     if (!caseItem._id) return;
     setSelectedCase(caseItem);
     setShowHearingModal(true);
+
+    if (!token) return;
+
+    setIsHearingsLoading(true);
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/cases/${caseItem._id}/hearings`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch hearings');
+      }
+
+      const data = await response.json();
+      setCaseHearings(data.hearings || []);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to load hearings',
+        variant: 'destructive',
+      });
+      setCaseHearings([]);
+    } finally {
+      setIsHearingsLoading(false);
+    }
   };
 
-  const handleHearingSelection = (hearingNumber: number, action: 'directive' | 'chat') => {
-    if (!selectedCase?._id) return;
+  const handleHearingSelection = (hearingId: string, action: 'directive' | 'chat') => {
+    if (!hearingId) return;
 
-    sessionStorage.setItem('legal_conversation_id', selectedCase._id);
-    if (selectedCase.case_facts) {
-      sessionStorage.setItem('legal_case_description', selectedCase.case_facts);
-    }
-    sessionStorage.setItem('selected_hearing_number', hearingNumber.toString());
+    sessionStorage.setItem('legal_conversation_id', hearingId);
 
     setShowHearingModal(false);
 
     if (action === 'directive') {
-      navigate(`/directive?case_id=${selectedCase._id}&hearing=${hearingNumber}`);
+      navigate(`/directive?hearing_id=${hearingId}`);
     } else {
       navigate('/chat');
     }
@@ -123,6 +153,8 @@ const Dashboard: React.FC = () => {
   const handleCloseModal = () => {
     setShowHearingModal(false);
     setSelectedCase(null);
+    setCaseHearings([]);
+    setIsHearingsLoading(false);
   };
 
   const toggleTimeline = (caseId: string | undefined) => {
@@ -350,13 +382,14 @@ const Dashboard: React.FC = () => {
         <HearingSelectionModal
           open={showHearingModal}
           onClose={handleCloseModal}
-          hearings={(selectedCase.hearing_history || []).map((h, idx) => ({
+          hearings={caseHearings.map((h, idx) => ({
+            hearing_id: h.hearing_id,
             hearing_number: idx + 1,
-            date: h.date,
-            outcome: h.outcome,
+            date: h.hearing_date,
             summary: h.summary,
           }))}
           caseNumber={selectedCase.case_number || 'CV-2025-' + selectedCase._id?.slice(-3).toUpperCase()}
+          isLoading={isHearingsLoading}
           onSelectHearing={handleHearingSelection}
         />
       )}
