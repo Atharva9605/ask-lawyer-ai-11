@@ -7,7 +7,11 @@ interface CaseFactsSummaryProps {
 }
 
 export const CaseFactsSummary: React.FC<CaseFactsSummaryProps> = ({ caseFacts }) => {
-  const lines = caseFacts.split(/\n+/).filter((line) => line.trim().length > 0);
+  // Handle various newline formats and create proper paragraphs
+  const paragraphs = caseFacts
+    .split(/\n\n+/)  // Split by double newlines for paragraphs
+    .filter((para) => para.trim().length > 0)
+    .map((para) => para.replace(/\n/g, '  \n'));  // Convert single newlines to markdown line breaks
 
   return (
     <div className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
@@ -23,14 +27,14 @@ export const CaseFactsSummary: React.FC<CaseFactsSummaryProps> = ({ caseFacts })
       
       {/* Content */}
       <div className="p-5">
-        <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
-          {lines.map((line, idx) => (
+        <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700 space-y-3">
+          {paragraphs.map((paragraph, idx) => (
             <ReactMarkdown
               key={idx}
               components={{
                 p: ({ node, ...props }) => (
                   <p
-                    className="text-sm leading-relaxed text-slate-700 dark:text-slate-300"
+                    className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 mb-2 last:mb-0"
                     {...props}
                   />
                 ),
@@ -39,7 +43,7 @@ export const CaseFactsSummary: React.FC<CaseFactsSummaryProps> = ({ caseFacts })
                 ),
               }}
             >
-              {line}
+              {paragraph}
             </ReactMarkdown>
           ))}
         </div>
