@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Calendar, MessageSquare, FileText, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/hooks/use-toast';
 
 interface Hearing {
   hearing_id: string;
@@ -25,7 +27,6 @@ interface HearingSelectionModalProps {
   hearings: Hearing[];
   caseNumber: string;
   isLoading: boolean;
-  onSelectHearing: (hearingId: string, action: 'directive' | 'chat') => void;
 }
 
 export const HearingSelectionModal: React.FC<HearingSelectionModalProps> = ({
@@ -34,17 +35,45 @@ export const HearingSelectionModal: React.FC<HearingSelectionModalProps> = ({
   hearings,
   caseNumber,
   isLoading,
-  onSelectHearing,
 }) => {
   const [selectedHearing, setSelectedHearing] = React.useState<Hearing | null>(null);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   const handleHearingSelect = (hearing: Hearing) => {
     setSelectedHearing(hearing);
   };
 
   const handleActionSelect = (action: 'directive' | 'chat') => {
-    if (!selectedHearing) return;
-    onSelectHearing(selectedHearing.hearing_id, action);
+    if (!selectedHearing) {
+      toast({
+        title: 'No hearing selected',
+        description: 'Please pick a hearing first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const hearingId = selectedHearing.hearing_id;
+
+    if (!hearingId) {
+      toast({
+        title: 'Invalid hearing',
+        description: 'This hearing is missing an identifier.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    sessionStorage.setItem('legal_conversation_id', hearingId);
+
+    if (action === 'directive') {
+      navigate(`/directive?hearing_id=${hearingId}`);
+    } else {
+      navigate('/chat');
+    }
+
+    onClose();
   };
 
   return (

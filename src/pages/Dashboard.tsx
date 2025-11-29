@@ -136,29 +136,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleHearingSelection = (hearingId: string, action: 'directive' | 'chat') => {
-    if (!hearingId) {
-      console.error('No hearing ID provided');
-      toast({
-        title: 'Error',
-        description: 'Invalid hearing selection. Please try again.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    console.log('Selected hearing:', hearingId, 'Action:', action);
-    sessionStorage.setItem('legal_conversation_id', hearingId);
-
-    setShowHearingModal(false);
-
-    if (action === 'directive') {
-      navigate(`/directive?hearing_id=${hearingId}`);
-    } else {
-      navigate('/chat');
-    }
-  };
-
   const handleCloseModal = () => {
     setShowHearingModal(false);
     setSelectedCase(null);
@@ -365,6 +342,12 @@ const Dashboard: React.FC = () => {
                       variant="outline"
                       size="sm"
                       className="gap-2"
+                      onClick={() =>
+                        toast({
+                          title: 'Edit coming soon',
+                          description: 'Case editing will be available in a future update.',
+                        })
+                      }
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -399,7 +382,6 @@ const Dashboard: React.FC = () => {
           }))}
           caseNumber={selectedCase.case_number || 'CV-2025-' + selectedCase._id?.slice(-3).toUpperCase()}
           isLoading={isHearingsLoading}
-          onSelectHearing={handleHearingSelection}
         />
       )}
     </div>
