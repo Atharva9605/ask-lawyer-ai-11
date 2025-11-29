@@ -7,10 +7,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Download, MessageSquare, Scale, FileText, Calendar } from 'lucide-react';
+import { ArrowLeft, Download, MessageSquare, Scale, FileText, Calendar, ChevronDown, Bot, CheckCircle, Gavel, Users, Shield, GitBranch, Banknote, Lightbulb, ListChecks, Brain } from 'lucide-react';
 import { MessageContent } from '@/components/MessageContent';
 import { format } from 'date-fns';
 import { API_BASE_URL } from '../lib/legalStreamAPI';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ReferenceCasesDisplay } from '@/components/ReferenceCasesDisplay';
 
 interface DirectiveData {
   hearing_id: string;
@@ -23,6 +25,28 @@ interface DirectiveData {
   key_action?: string;
 }
 
+interface ParsedPart {
+  partNumber: number;
+  title: string;
+  thoughts: string[];
+  searchQueries: string[];
+  deliverable: string;
+}
+
+const partMetadata = [
+  { title: "Mission Briefing", icon: Scale },
+  { title: "Legal Battlefield Analysis", icon: Gavel },
+  { title: "Asset & Intelligence Assessment", icon: Users },
+  { title: "Red Team Analysis", icon: Shield },
+  { title: "Strategic SWOT Matrix", icon: GitBranch },
+  { title: "Financial Exposure & Remedies", icon: Banknote },
+  { title: "Scenario War Gaming", icon: Lightbulb },
+  { title: "Leverage Points & Negotiation", icon: Lightbulb },
+  { title: "Execution Roadmap", icon: ListChecks },
+  { title: "Final Counsel Briefing", icon: FileText },
+  { title: "Reference Cases", icon: Scale },
+];
+
 const DirectiveView: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -33,6 +57,9 @@ const DirectiveView: React.FC = () => {
 
   const [directive, setDirective] = useState<DirectiveData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [parsedParts, setParsedParts] = useState<ParsedPart[]>([]);
+  const [expandedParts, setExpandedParts] = useState<Set<number>>(new Set());
+  const [expandedThoughts, setExpandedThoughts] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!token || !user) {
@@ -72,6 +99,12 @@ const DirectiveView: React.FC = () => {
 
       const data = await response.json();
       setDirective(data);
+      
+      // Parse the directive into parts
+      if (data.full_directive) {
+        const parts = parseDirectiveIntoParts(data.full_directive);
+        setParsedParts(parts);
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -99,6 +132,69 @@ const DirectiveView: React.FC = () => {
     toast({
       title: 'Downloaded',
       description: 'Directive downloaded successfully',
+    });
+  };
+
+  const parseDirectiveIntoParts = (fullDirective: string): ParsedPart[] => {
+    const parts: ParsedPart[] = [];
+    
+    // Split by directive parts
+    const partRegex = /\[DIRECTIVE-PART-(\d+)-BEGIN\]([\s\S]*?)\[DIRECTIVE-PART-\d+-END\]/g;
+    let match;
+    
+    while ((match = partRegex.exec(fullDirective)) !== null) {
+      const partNumber = parseInt(match[1]);
+      const content = match[2];
+      
+      // Extract thoughts
+      const thoughts: string[] = [];
+      const thoughtsRegex = /\[THOUGHTS-BEGIN\]([\s\S]*?)\[THOUGHTS-END\]/g;
+      let thoughtMatch;
+      while ((thoughtMatch = thoughtsRegex.exec(content)) !== null) {
+        thoughts.push(thoughtMatch[1].trim());
+      }
+      
+      // Extract search queries
+      const searchQueries: string[] = [];
+      const queriesRegex = /\[SEARCH_QUERIES\]([\s\S]*?)(?=\[|$)/g;
+      let queryMatch;
+      while ((queryMatch = queriesRegex.exec(content)) !== null) {
+        const queries = queryMatch[1].trim().split('\n- ').filter(q => q.trim());
+        searchQueries.push(...queries.map(q => q.trim().replace(/^-\s*/, '')));
+      }
+      
+      // Extract deliverable
+      const deliverableRegex = /\[DELIVERABLE-BEGIN\]([\s\S]*?)\[DELIVERABLE-END\]/;
+      const deliverableMatch = content.match(deliverableRegex);
+      const deliverable = deliverableMatch ? deliverableMatch[1].trim() : '';
+      
+      const metadata = partMetadata[partNumber - 1] || { title: `Part ${partNumber}`, icon: FileText };
+      
+      parts.push({
+        partNumber,
+        title: metadata.title,
+        thoughts,
+        searchQueries,
+        deliverable
+      });
+    }
+    
+    return parts.sort((a, b) => a.partNumber - b.partNumber);
+  };
+
+  const togglePart = (partNumber: number) => {
+    setExpandedParts(prev => {
+      const newSet = new Set(prev);
+      newSet.has(partNumber) ? newSet.delete(partNumber) : newSet.add(partNumber);
+      return newSet;
+    });
+  };
+
+  const toggleThoughts = (partNumber: number) => {
+    setExpandedThoughts(prev => {
+      const newSet = new Set(prev);
+      newSet.has(partNumber) ? newSet.delete(partNumber) : newSet.add(partNumber);
+      return newSet;
     });
   };
 
@@ -184,85 +280,149 @@ const DirectiveView: React.FC = () => {
           </Card>
         ) : directive ? (
           <div className="space-y-6">
-            {/* Hearing Information Card */}
-            <Card className="border-l-4 border-l-primary">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-lg font-bold text-primary">
-                        {directive.hearing_number || '#1'}
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground">
-                        Hearing #{directive.hearing_number || '1'}
-                      </h3>
-                      {directive.hearing_date && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Calendar className="w-3 h-3" />
-                          {format(new Date(directive.hearing_date), 'MMM d, yyyy')}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="font-medium">
-                    Directive
-                  </Badge>
-                </div>
-
-                {directive.parties && (
-                  <div className="mb-3">
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                      Parties
-                    </div>
-                    <div className="text-sm text-foreground">
-                      {directive.parties}
-                    </div>
-                  </div>
-                )}
-
-                {directive.key_action && (
-                  <div className="mb-3">
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                      Key Action/Inaction
-                    </div>
-                    <div className="text-sm text-foreground">
-                      {directive.key_action}
-                    </div>
-                  </div>
-                )}
-
-                {directive.case_facts && (
-                  <div>
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                      Case Facts Summary
-                    </div>
-                    <div className="text-sm text-foreground">
-                      {directive.case_facts}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
             {/* Directive Content Card */}
             <Card>
-              <CardHeader className="border-b bg-muted/30">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-primary" />
-                  War Game Directive
-                </CardTitle>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-3">
+                    <Bot className="h-6 w-6 text-primary" />
+                    <span>Legal Analysis Directive</span>
+                  </CardTitle>
+                  <Badge variant="default" className="bg-green-600">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Complete
+                  </Badge>
+                </div>
+                {directive.case_facts && (
+                  <p className="text-sm text-muted-foreground pt-2">
+                    Analysis for: "{directive.case_facts.substring(0, 100)}{directive.case_facts.length > 100 ? '...' : ''}"
+                  </p>
+                )}
               </CardHeader>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[calc(100vh-28rem)]">
-                  <div className="p-8">
-                    <MessageContent 
-                      content={directive.full_directive} 
-                      showCopyButton={false}
-                    />
-                  </div>
-                </ScrollArea>
+              <CardContent className="space-y-3">
+                {parsedParts.map(part => {
+                  const isExpanded = expandedParts.has(part.partNumber);
+                  const metadata = partMetadata[part.partNumber - 1] || { title: part.title, icon: FileText };
+                  const PartIcon = metadata.icon;
+
+                  return (
+                    <div 
+                      key={part.partNumber}
+                      className="border rounded-lg border-border"
+                    >
+                      <div 
+                        className="p-4 cursor-pointer flex items-center justify-between hover:bg-accent/50 transition-colors"
+                        onClick={() => togglePart(part.partNumber)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <PartIcon className="h-5 w-5 text-muted-foreground" />
+                          <span className="font-semibold">{metadata.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">Part {part.partNumber}</Badge>
+                          <ChevronDown 
+                            className={`h-5 w-5 text-muted-foreground transition-transform duration-300 ${
+                              isExpanded ? 'rotate-180' : ''
+                            }`} 
+                          />
+                        </div>
+                      </div>
+
+                      <div 
+                        className={`transition-all duration-500 ease-in-out overflow-hidden ${
+                          isExpanded ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+                        }`}
+                      >
+                        <div className="px-4 pb-4 space-y-4">
+                          {/* Thoughts Section - Collapsible */}
+                          {part.thoughts.length > 0 && (
+                            <Collapsible 
+                              open={expandedThoughts.has(part.partNumber)}
+                              onOpenChange={() => toggleThoughts(part.partNumber)}
+                            >
+                              <div className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                <CollapsibleTrigger className="w-full">
+                                  <div className="bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-3.5 flex items-center justify-between hover:from-blue-600 hover:to-cyan-600 transition-all cursor-pointer">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                                        <Brain size={20} className="text-white"/>
+                                      </div>
+                                      <h4 className="text-lg font-bold text-white">
+                                        Internal Reasoning
+                                      </h4>
+                                    </div>
+                                    <ChevronDown 
+                                      className={`h-5 w-5 text-white transition-transform duration-300 ${
+                                        expandedThoughts.has(part.partNumber) ? 'rotate-180' : ''
+                                      }`} 
+                                    />
+                                  </div>
+                                </CollapsibleTrigger>
+                                
+                                <CollapsibleContent>
+                                  <div className="p-5 space-y-3">
+                                    {part.thoughts.map((thought, idx) => (
+                                      <div key={idx} className="relative pl-4 border-l-2 border-blue-200 dark:border-blue-800">
+                                        <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg">
+                                          {thought}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </CollapsibleContent>
+                              </div>
+                            </Collapsible>
+                          )}
+
+                          {/* Search Queries Section */}
+                          {part.searchQueries.length > 0 && (
+                            <div className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                              <div className="bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-3.5 flex items-center gap-3">
+                                <div className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                                  <MessageSquare size={20} className="text-white"/>
+                                </div>
+                                <h4 className="text-lg font-bold text-white">
+                                  Research Queries
+                                </h4>
+                              </div>
+                              
+                              <div className="p-5 space-y-2.5">
+                                {part.searchQueries.map((q, i) => (
+                                  <div key={i} className="flex items-start gap-3 group">
+                                    <div className="mt-1 flex-shrink-0 w-7 h-7 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg flex items-center justify-center">
+                                      <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{i + 1}</span>
+                                    </div>
+                                    <div className="flex-1 bg-slate-50 dark:bg-slate-900/50 px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                                      <span className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{q}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Deliverable Content */}
+                          {part.deliverable && (
+                            <div className="relative overflow-hidden rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-shadow duration-300">
+                              {part.partNumber === 11 ? (
+                                <div className="relative z-10">
+                                  <ReferenceCasesDisplay content={part.deliverable} />
+                                </div>
+                              ) : (
+                                <div className="relative z-10 px-6 py-5">
+                                  <MessageContent 
+                                    content={part.deliverable} 
+                                    showCopyButton={false}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
           </div>
