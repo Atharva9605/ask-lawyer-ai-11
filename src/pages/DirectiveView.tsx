@@ -311,8 +311,8 @@ const DirectiveView: React.FC = () => {
           <div className="space-y-4">
             {/* Hearing Header Card */}
             <Card className="bg-card border">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
                       <span className="text-xl font-bold text-primary">
@@ -336,13 +336,12 @@ const DirectiveView: React.FC = () => {
                   </Badge>
                 </div>
 
+                {directive.case_facts && (
+                  <CaseFactsSummary caseFacts={directive.case_facts} />
+                )}
               </CardContent>
             </Card>
 
-            {/* Case Facts Summary */}
-            {directive.case_facts && (
-              <CaseFactsSummary caseFacts={directive.case_facts} />
-            )}
 
             {/* Directive content - match Analyze page formatting if possible */}
             {analysisParts.length > 0 ? (
