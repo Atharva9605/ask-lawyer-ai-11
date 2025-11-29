@@ -16,6 +16,29 @@ export interface SwotMatrixData {
 }
 
 /**
+ * Helper: Clean unwanted prefixes from the stream
+ */
+const cleanStreamChunk = (chunk: string) => {
+  if (!chunk) return "";
+  
+  // Remove all unwanted AI prefix patterns
+  let cleaned = chunk
+    .replace(/Greetings\.IamtheAILegalStrategos.*?Pleasestateyourquestion\.⚠️?/gi, "")
+    .replace(/Greetings\.?/gi, "")
+    .replace(/IamtheAILegalStrategos/gi, "")
+    .replace(/Iampreparedtoaddress.*?Indianlegalsystem\.?/gi, "")
+    .replace(/Pleasestateyourquestion\.?/gi, "")
+    .replace(/⚠️\*?Note:GoogleSearchgroundingnotavailableinthisresponse\.\*?/gi, "")
+    .replace(/TheWarGameDirectivefor.*?isfullyloaded\.?/gi, "")
+    .replace(/Stateyourquery\.?/gi, "")
+    .replace(/⚠️/g, "");
+  
+  // ✅ FIXED: Removed .trim() here. 
+  // We return the cleaned string exactly as is to preserve spaces.
+  return cleaned;
+};
+
+/**
  * Defines the callback functions that the streaming client uses to send
  * clean, parsed data back to the React components.
  */
@@ -203,7 +226,10 @@ export class LegalStreamingClient {
                 if (trimmedLine.startsWith('data:')) {
                     const data = trimmedLine.substring(5).trim();
                     if (data && data !== '[DONE]') {
-                      this.callbacks.onDeliverable?.(data);
+                      const cleanedData = cleanStreamChunk(data);
+                      if (cleanedData) {
+                        this.callbacks.onDeliverable?.(cleanedData);
+                      }
                     }
                 }
             }
@@ -319,15 +345,18 @@ export class LegalStreamingClient {
 
           // --- Content Delivery Logic ---
           if (this.inDeliverable) {
-            if (this.currentPartNumber === 5) {
-              try {
-                const swotData: SwotMatrixData = JSON.parse(data);
-                this.callbacks.onDeliverable?.(swotData);
-              } catch (e) {
-                this.callbacks.onDeliverable?.(data);
+            const cleanedData = cleanStreamChunk(data);
+            if (cleanedData) { // Only send if there's content after cleaning
+              if (this.currentPartNumber === 5) {
+                try {
+                  const swotData: SwotMatrixData = JSON.parse(cleanedData);
+                  this.callbacks.onDeliverable?.(swotData);
+                } catch (e) {
+                  this.callbacks.onDeliverable?.(cleanedData);
+                }
+              } else {
+                this.callbacks.onDeliverable?.(cleanedData);
               }
-            } else {
-              this.callbacks.onDeliverable?.(data);
             }
           }
           
