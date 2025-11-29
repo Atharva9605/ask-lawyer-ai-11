@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Send, Bot, User, Download, Sparkles, MessageSquare, ArrowLeft, Scale } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 // Changed these two imports to relative paths to avoid alias resolution errors in some environments.
-import { LegalStreamingClient } from "../lib/legalStreamAPI";
+import { LegalStreamingClient, API_BASE_URL } from "../lib/legalStreamAPI";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
 import { MessageContent } from "@/components/MessageContent";
@@ -143,6 +143,41 @@ const Chat: React.FC = () => {
 
     setConversationId(storedConversationId);
 
+    // Load chat history from the backend
+    const loadChatHistory = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/hearings/${storedConversationId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.chat_history && Array.isArray(data.chat_history)) {
+            // Convert chat history to messages
+            const historyMessages: Message[] = data.chat_history.map((item: any, idx: number) => {
+              const isUser = item.role === 'user' || item.sender === 'user';
+              return {
+                id: `history-${idx}`,
+                content: item.content || item.message || '',
+                sender: isUser ? 'user' : 'ai',
+                timestamp: new Date(item.timestamp || Date.now()),
+              };
+            });
+            setMessages(historyMessages);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      }
+    };
+
+    loadChatHistory();
+
     // Defensive: if LegalStreamingClient failed to import, avoid throwing at runtime
     let client: LegalStreamingClient | null = null;
     try {
@@ -171,7 +206,7 @@ const Chat: React.FC = () => {
         // ignore
       }
     };
-  }, [navigate, handleDeliverable, handleComplete, handleError]);
+  }, [navigate, handleDeliverable, handleComplete, handleError, token]);
 
   const handleSend = async () => {
     if (!input.trim()) return;

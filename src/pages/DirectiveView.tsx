@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Download, MessageSquare, Scale, FileText } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { ArrowLeft, Download, MessageSquare, Scale, FileText, Calendar } from 'lucide-react';
+import { MessageContent } from '@/components/MessageContent';
+import { format } from 'date-fns';
 import { API_BASE_URL } from '../lib/legalStreamAPI';
 
 interface DirectiveData {
@@ -16,6 +17,10 @@ interface DirectiveData {
   full_directive: string;
   chat_history: string[];
   case_facts?: string;
+  hearing_date?: string;
+  hearing_number?: number;
+  parties?: string;
+  key_action?: string;
 }
 
 const DirectiveView: React.FC = () => {
@@ -178,32 +183,89 @@ const DirectiveView: React.FC = () => {
             </CardContent>
           </Card>
         ) : directive ? (
-          <Card>
-            <CardHeader className="border-b">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-2xl mb-2">
-                    War Game Directive
-                  </CardTitle>
-                  {directive?.case_facts && (
-                    <div className="mt-2 text-sm text-muted-foreground">
-                      <span className="font-semibold">Case Facts Summary:</span>{' '}
+          <div className="space-y-6">
+            {/* Hearing Information Card */}
+            <Card className="border-l-4 border-l-primary">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-lg font-bold text-primary">
+                        {directive.hearing_number || '#1'}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground">
+                        Hearing #{directive.hearing_number || '1'}
+                      </h3>
+                      {directive.hearing_date && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Calendar className="w-3 h-3" />
+                          {format(new Date(directive.hearing_date), 'MMM d, yyyy')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="font-medium">
+                    Directive
+                  </Badge>
+                </div>
+
+                {directive.parties && (
+                  <div className="mb-3">
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                      Parties
+                    </div>
+                    <div className="text-sm text-foreground">
+                      {directive.parties}
+                    </div>
+                  </div>
+                )}
+
+                {directive.key_action && (
+                  <div className="mb-3">
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                      Key Action/Inaction
+                    </div>
+                    <div className="text-sm text-foreground">
+                      {directive.key_action}
+                    </div>
+                  </div>
+                )}
+
+                {directive.case_facts && (
+                  <div>
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                      Case Facts Summary
+                    </div>
+                    <div className="text-sm text-foreground">
                       {directive.case_facts}
                     </div>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Directive Content Card */}
+            <Card>
+              <CardHeader className="border-b bg-muted/30">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  War Game Directive
+                </CardTitle>
+              </CardHeader>
               <CardContent className="p-0">
-                <ScrollArea className="h-[calc(100vh-16rem)]">
-                  <div className="p-8 prose prose-slate dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {directive.full_directive}
-                  </ReactMarkdown>
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                <ScrollArea className="h-[calc(100vh-28rem)]">
+                  <div className="p-8">
+                    <MessageContent 
+                      content={directive.full_directive} 
+                      showCopyButton={false}
+                    />
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           <Card>
             <CardContent className="text-center py-12">
