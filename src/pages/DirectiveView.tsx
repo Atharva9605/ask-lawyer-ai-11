@@ -8,7 +8,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Download, MessageSquare, Scale, FileText, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import { API_BASE_URL } from '../lib/legalStreamAPI';
+import { ProfessionalLegalChat } from '@/components/ProfessionalLegalChat';
+import type { AnalysisState } from '@/pages/Analyze';
+import { API_BASE_URL, type SwotMatrixData } from '../lib/legalStreamAPI';
 
 interface DirectiveData {
   hearing_id: string;
@@ -21,6 +23,105 @@ interface DirectiveData {
   key_action?: string;
 }
 
+const parseSwotFromText = (text: string): SwotMatrixData | null => {
+  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+  const swot: Partial<SwotMatrixData> = {};
+
+  let currentSection: 'strength' | 'weakness' | 'opportunity' | 'threat' | null = null;
+  let currentContent: string[] = [];
+
+  const saveSection = () => {
+    if (currentSection && currentContent.length > 0) {
+      swot[currentSection] = currentContent.join(' ').trim();
+      currentContent = [];
+    }
+  };
+
+  for (const line of lines) {
+    const lowerLine = line.toLowerCase();
+
+    if (lowerLine.match(/^[\*\-•]?\s*\*?\*?strength/i)) {
+      saveSection();
+      currentSection = 'strength';
+      const match = line.match(/strength[s]?:?\s*(.+)/i);
+      if (match?.[1]) currentContent.push(match[1]);
+    } else if (lowerLine.match(/^[\*\-•]?\s*\*?\*?weakness/i)) {
+      saveSection();
+      currentSection = 'weakness';
+      const match = line.match(/weakness[es]*:?\s*(.+)/i);
+      if (match?.[1]) currentContent.push(match[1]);
+    } else if (lowerLine.match(/^[\*\-•]?\s*\*?\*?opportunit/i)) {
+      saveSection();
+      currentSection = 'opportunity';
+      const match = line.match(/opportunit[y|ies]*:?\s*(.+)/i);
+      if (match?.[1]) currentContent.push(match[1]);
+    } else if (lowerLine.match(/^[\*\-•]?\s*\*?\*?threat/i)) {
+      saveSection();
+      currentSection = 'threat';
+      const match = line.match(/threat[s]*:?\s*(.+)/i);
+      if (match?.[1]) currentContent.push(match[1]);
+    } else if (currentSection) {
+      currentContent.push(line);
+    }
+  }
+
+  saveSection();
+
+  if (swot.strength && swot.weakness && swot.opportunity && swot.threat) {
+    return swot as SwotMatrixData;
+  }
+
+  return null;
+};
+
+const parseDirectiveToAnalysisParts = (fullDirective: string): AnalysisState[] => {
+  const parts: AnalysisState[] = [];
+
+  const partRegex = /=== PART (\d+) ===([\s\S]*?)(?=== PART \d+ ===|$)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = partRegex.exec(fullDirective)) !== null) {
+    const partNumber = parseInt(match[1]);
+    const content = match[2];
+
+    const thoughts: string[] = [];
+    const thoughtsRegex = /\[THOUGHTS-BEGIN\]([\s\S]*?)\[THOUGHTS-END\]/g;
+    let thoughtMatch: RegExpExecArray | null;
+    while ((thoughtMatch = thoughtsRegex.exec(content)) !== null) {
+      thoughts.push(thoughtMatch[1].trim().replace(/\\n/g, '\n'));
+    }
+
+    const searchQueries: string[] = [];
+    const queriesRegex = /\[SEARCH_QUERIES\]([\s\S]*?)(?=\[|$)/g;
+    let queryMatch: RegExpExecArray | null;
+    while ((queryMatch = queriesRegex.exec(content)) !== null) {
+      const queries = queryMatch[1].trim().split('\n').filter(q => q.trim());
+      searchQueries.push(...queries.map(q => q.replace(/^[-•]\s*/, '').trim()));
+    }
+
+    let deliverable: string | SwotMatrixData = '';
+    const deliverableRegex = /\[DELIVERABLE-BEGIN\]([\s\S]*?)\[DELIVERABLE-END\]/;
+    const deliverableMatch = content.match(deliverableRegex);
+    const deliverableText = deliverableMatch ? deliverableMatch[1].trim().replace(/\\n/g, '\n') : '';
+
+    if (partNumber === 5) {
+      const swot = parseSwotFromText(deliverableText);
+      deliverable = swot || deliverableText;
+    } else {
+      deliverable = deliverableText;
+    }
+
+    parts.push({
+      partNumber,
+      thoughts,
+      searchQueries,
+      deliverable,
+    });
+  }
+
+  return parts.sort((a, b) => a.partNumber - b.partNumber);
+};
+
 const DirectiveView: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -31,6 +132,7 @@ const DirectiveView: React.FC = () => {
 
   const [directive, setDirective] = useState<DirectiveData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [analysisParts, setAnalysisParts] = useState<AnalysisState[]>([]);
 
   useEffect(() => {
     console.log('DirectiveView mounted', { token: !!token, user: !!user, hearingId });
@@ -78,6 +180,11 @@ const DirectiveView: React.FC = () => {
       const data = await response.json();
       console.log('Directive data received:', data);
       setDirective(data);
+      if (data.full_directive) {
+        const parsed = parseDirectiveToAnalysisParts(data.full_directive);
+        console.log('Parsed analysis parts:', parsed);
+        setAnalysisParts(parsed);
+      }
     } catch (error) {
       console.error('Error fetching directive:', error);
       toast({
@@ -232,20 +339,30 @@ const DirectiveView: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* War Game Directive Card */}
-            <Card className="bg-card border">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-2 mb-6">
-                  <FileText className="w-5 h-5 text-foreground" />
-                  <h2 className="text-xl font-bold text-foreground">
-                    War Game Directive
-                  </h2>
-                </div>
-                <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap font-mono">
-                  {directive.full_directive}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Directive content - match Analyze page formatting if possible */}
+            {analysisParts.length > 0 ? (
+              <ProfessionalLegalChat
+                analysisParts={analysisParts}
+                isStreaming={false}
+                isComplete={true}
+                caseDescription={directive.case_facts}
+                currentPartNumber={0}
+              />
+            ) : (
+              <Card className="bg-card border">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-6">
+                    <FileText className="w-5 h-5 text-foreground" />
+                    <h2 className="text-xl font-bold text-foreground">
+                      War Game Directive
+                    </h2>
+                  </div>
+                  <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap font-mono">
+                    {directive.full_directive}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         ) : (
           <Card>
