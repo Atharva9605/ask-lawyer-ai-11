@@ -38,7 +38,8 @@ const cleanStreamChunk = (chunk: string) => {
     .replace(/Stateyourquery\.?/gi, "")
     .replace(/⚠️/g, "");
   
-  return cleaned.trim();
+  // ✅ FIXED: Removed .trim() to preserve spaces from token-by-token streaming
+  return cleaned;
 };
 
 // Helper: append chunks while ensuring proper spacing between words
