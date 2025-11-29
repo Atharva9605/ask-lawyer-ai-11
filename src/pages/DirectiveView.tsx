@@ -79,14 +79,15 @@ const parseDirectiveToAnalysisParts = (fullDirective: string): AnalysisState[] =
   console.log('Starting to parse directive, length:', fullDirective.length);
   const parts: AnalysisState[] = [];
 
-  const partRegex = /=== PART (\d+) ===([\s\S]*?)(?=\n=== PART \d+ ===|$)/g;
+  // Fixed regex: removed the \n from lookahead to capture all parts correctly
+  const partRegex = /=== PART (\d+) ===\s*([\s\S]*?)(?=\s*=== PART \d+ ===|$)/g;
   let match: RegExpExecArray | null;
   let matchCount = 0;
 
   while ((match = partRegex.exec(fullDirective)) !== null) {
     matchCount++;
     const partNumber = parseInt(match[1]);
-    const content = match[2];
+    const content = match[2].trim();
     
     console.log(`Found Part ${partNumber}, content length: ${content.length}`);
 
