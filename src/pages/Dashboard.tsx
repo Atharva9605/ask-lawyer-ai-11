@@ -252,8 +252,9 @@ const Dashboard: React.FC = () => {
                       </Badge>
                     </div>
                     {caseItem.case_facts && (
-                      <div className="text-sm text-muted-foreground line-clamp-2 prose prose-sm max-w-none">
-                        <ReactMarkdown>{caseItem.case_facts}</ReactMarkdown>
+                      <div className="inline-flex items-center gap-2 rounded-full bg-background px-3 py-1 border border-border/60 text-xs text-muted-foreground">
+                        <FileText className="w-3 h-3" />
+                        <span>Case facts summary captured</span>
                       </div>
                     )}
                   </div>
