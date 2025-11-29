@@ -137,8 +137,17 @@ const Dashboard: React.FC = () => {
   };
 
   const handleHearingSelection = (hearingId: string, action: 'directive' | 'chat') => {
-    if (!hearingId) return;
+    if (!hearingId) {
+      console.error('No hearing ID provided');
+      toast({
+        title: 'Error',
+        description: 'Invalid hearing selection. Please try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
+    console.log('Selected hearing:', hearingId, 'Action:', action);
     sessionStorage.setItem('legal_conversation_id', hearingId);
 
     setShowHearingModal(false);
@@ -383,9 +392,9 @@ const Dashboard: React.FC = () => {
           open={showHearingModal}
           onClose={handleCloseModal}
           hearings={caseHearings.map((h, idx) => ({
-            hearing_id: h.hearing_id,
+            hearing_id: h.hearing_id || h._id || h.id || `hearing-${idx}`,
             hearing_number: idx + 1,
-            date: h.hearing_date,
+            date: h.hearing_date || h.date,
             summary: h.summary,
           }))}
           caseNumber={selectedCase.case_number || 'CV-2025-' + selectedCase._id?.slice(-3).toUpperCase()}
