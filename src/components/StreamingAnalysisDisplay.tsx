@@ -129,6 +129,7 @@ export const StreamingAnalysisDisplay: React.FC<StreamingAnalysisDisplayProps> =
   const formatMarkdown = (text: string) => {
     // Process markdown without adding extra <br> tags
     let processed = text
+      .replace(/<br\s*\/?>(\s*)/gi, ' ') // Remove HTML <br> tags that cause extra spacing
       .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
       .replace(/\n\* (.*?)(?=\n|$)/g, '<li class="ml-4">$1</li>');
     
