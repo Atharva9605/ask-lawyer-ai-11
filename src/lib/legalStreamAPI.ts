@@ -237,7 +237,9 @@ export class LegalStreamingClient {
                 if (data && data !== '[DONE]') {
                     const cleanedData = cleanStreamChunk(data);
                     if (cleanedData) {
-                        this.callbacks.onDeliverable?.(cleanedData);
+                        // Convert escaped newlines to real newlines
+                        const processedData = cleanedData.replace(/\\n/g, '\n');
+                        this.callbacks.onDeliverable?.(processedData);
                     }
                 }
             }
@@ -362,15 +364,18 @@ export class LegalStreamingClient {
           if (this.inDeliverable) {
             const cleanedData = cleanStreamChunk(data);
             if (cleanedData) { // Only send if there's content after cleaning
+              // Convert escaped newlines to real newlines
+              const processedData = cleanedData.replace(/\\n/g, '\n');
+              
               if (this.currentPartNumber === 5) {
                 try {
-                  const swotData: SwotMatrixData = JSON.parse(cleanedData);
+                  const swotData: SwotMatrixData = JSON.parse(processedData);
                   this.callbacks.onDeliverable?.(swotData);
                 } catch (e) {
-                  this.callbacks.onDeliverable?.(cleanedData);
+                  this.callbacks.onDeliverable?.(processedData);
                 }
               } else {
-                this.callbacks.onDeliverable?.(cleanedData);
+                this.callbacks.onDeliverable?.(processedData);
               }
             }
           }

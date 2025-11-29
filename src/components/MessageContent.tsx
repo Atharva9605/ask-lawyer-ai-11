@@ -241,7 +241,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({
   return (
     <div className={`legal-message-content ${className}`}>
       <div
-        className="legal-formatted-text text-[15px] leading-relaxed text-foreground"
+        className="legal-formatted-text text-[15px] leading-relaxed text-foreground whitespace-pre-wrap"
         dangerouslySetInnerHTML={{ __html: formattedContent }}
       />
 
