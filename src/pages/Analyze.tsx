@@ -219,7 +219,7 @@ const Analyze = () => {
     const virtualFile = new File([textBlob], "case_description.txt", { type: 'text/plain' });
     
     try {
-      await client.startAnalysis(virtualFile, caseId, hearingDate, token || undefined);
+      await client.startAnalysis(virtualFile, caseId, hearingDate, caseDescription, '', token || undefined);
 
     } catch (err) {
       console.error('Failed to start analysis:', err);
