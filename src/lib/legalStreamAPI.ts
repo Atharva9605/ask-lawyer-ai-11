@@ -222,14 +222,22 @@ export class LegalStreamingClient {
             buffer = lines.pop() || '';
             
             for (const line of lines) {
-                const trimmedLine = line.trim();
-                if (trimmedLine.startsWith('data:')) {
-                    const data = trimmedLine.substring(5).trim();
-                    if (data && data !== '[DONE]') {
-                      const cleanedData = cleanStreamChunk(data);
-                      if (cleanedData) {
+                // Don't trim - preserve whitespace
+                if (!line.includes('data:')) continue;
+                
+                // Extract data after 'data:' prefix, removing only the prefix and optional single space
+                const dataIndex = line.indexOf('data:');
+                let data = line.substring(dataIndex + 5);
+                
+                // Remove only the first space if present (SSE format: "data: content")
+                if (data.startsWith(' ')) {
+                    data = data.substring(1);
+                }
+                
+                if (data && data !== '[DONE]') {
+                    const cleanedData = cleanStreamChunk(data);
+                    if (cleanedData) {
                         this.callbacks.onDeliverable?.(cleanedData);
-                      }
                     }
                 }
             }
@@ -269,11 +277,18 @@ export class LegalStreamingClient {
         buffer = lines.pop() || '';
         
         for (const line of lines) {
-          const trimmedLine = line.trim();
+          // Don't trim the line - preserve whitespace
+          if (!line.includes('data:')) continue;
           
-          if (!trimmedLine.startsWith('data:')) continue;
+          // Extract data after 'data:' prefix, removing only the prefix and optional single space
+          const dataIndex = line.indexOf('data:');
+          let data = line.substring(dataIndex + 5);
           
-          const data = trimmedLine.substring(5).trim();
+          // Remove only the first space if present (SSE format: "data: content")
+          if (data.startsWith(' ')) {
+            data = data.substring(1);
+          }
+          
           if (!data) continue;
 
           // --- Marker Processing Logic ---
