@@ -182,17 +182,41 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleDeleteCase = () => {
-    if (!caseToDelete?._id) return;
+  const handleDeleteCase = async () => {
+    if (!caseToDelete?._id || !token) return;
 
-    setCases((prev) => prev.filter((c) => c._id !== caseToDelete._id));
-    
-    toast({
-      title: 'Case Removed',
-      description: 'The case has been removed from display',
-    });
-    
-    setCaseToDelete(null);
+    setIsDeleting(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/cases/${caseToDelete._id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete case');
+      }
+
+      setCases((prev) => prev.filter((c) => c._id !== caseToDelete._id));
+      
+      toast({
+        title: 'Case Deleted',
+        description: 'Case and all associated hearings have been permanently deleted',
+      });
+    } catch (error) {
+      toast({
+        title: 'Delete Failed',
+        description: error instanceof Error ? error.message : 'Failed to delete case',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setCaseToDelete(null);
+    }
   };
 
   return (
@@ -438,9 +462,10 @@ const Dashboard: React.FC = () => {
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteCase}
+              disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete Case
+              {isDeleting ? 'Deleting...' : 'Delete Case'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
